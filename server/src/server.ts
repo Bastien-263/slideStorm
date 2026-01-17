@@ -3,8 +3,8 @@ import { z } from "zod";
 import "dotenv/config";
 
 const apiKey = process.env.API_KEY;
-const agentId = process.env.ID_AGENT;
-const spaceId = process.env.ID_SPACED;
+const agentId = process.env.AGENT_ID;
+const workspaceId = process.env.WORKSPACE_ID;
 
 const Answers = [
   "As I see it, yes",
@@ -43,7 +43,7 @@ const server = new McpServer(
   },
   async ({ question }) => {
     try {
-      const url = 'https://dust.tt/api/v1/w/'+spaceId+'/assistant/conversations';
+      const url = 'https://dust.tt/api/v1/w/'+workspaceId+'/assistant/conversations';
       const options = {
         method: 'POST',
         headers: {
