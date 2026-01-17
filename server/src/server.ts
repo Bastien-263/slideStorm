@@ -6,31 +6,14 @@ const apiKey = process.env.API_KEY;
 const agentId = process.env.AGENT_ID;
 const workspaceId = process.env.WORKSPACE_ID;
 
-const Answers = [
-  "As I see it, yes",
-  "Don't count on it",
-  "It is certain",
-  "It is decidedly so",
-  "Most likely",
-  "My reply is no",
-  "My sources say no",
-  "Outlook good",
-  "Outlook not so good",
-  "Signs point to yes",
-  "Very doubtful",
-  "Without a doubt",
-  "Yes definitely",
-  "Yes",
-  "You may rely on it",
-];
-
 const server = new McpServer(
   {
-    name: "Premier Server mcp",
+    name: "SlideStorm MCP Server",
     version: "0.0.1",
   },
   { capabilities: {} },
-).registerWidget(
+)
+.registerWidget(
   "magic-8-ball",
   {
     description: "server appelant dust",
@@ -55,19 +38,15 @@ const server = new McpServer(
           message: {
             mentions: [{configurationId: agentId}],
             context: {username: 'slide', timezone: 'Europe/Paris'},
-            content: 'salut'
+            content: question
           }
         })
       };
-      var answer = "aaaaaaa";
-      try {
-        const res = await fetch(url, options);
-        const json = await res.json();
-        answer = JSON.stringify(json, null, 2);
-        console.log(answer);
-      } catch (err) {
-        console.error(err);
-      }
+      const res = await fetch(url, options);
+      const json = await res.json();
+      const answer = JSON.stringify(json, null, 2);
+      console.log(answer);
+
       return {
         structuredContent: { answer },
         content: [],
@@ -79,6 +58,25 @@ const server = new McpServer(
         isError: true,
       };
     }
+  },
+)
+.registerWidget(
+  "pdf-uploader",
+  {
+    description: "Upload and convert PDF files to PNG images",
+  },
+  {
+    description: "Allows user to upload a PDF from their computer and converts it to PNG images.",
+    inputSchema: {
+      // No required input - widget starts immediately when triggered
+    },
+  },
+  async () => {
+    // Return empty content to display the upload interface
+    return {
+      content: [],
+      isError: false,
+    };
   },
 );
 
