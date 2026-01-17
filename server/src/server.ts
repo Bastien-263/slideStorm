@@ -1,5 +1,10 @@
 import { McpServer } from "skybridge/server";
 import { z } from "zod";
+import "dotenv/config";
+
+const apiKey = process.env.API_KEY;
+const agentId = process.env.ID_AGENT;
+const spaceId = process.env.ID_SPACED;
 
 const Answers = [
   "As I see it, yes",
@@ -21,28 +26,48 @@ const Answers = [
 
 const server = new McpServer(
   {
-    name: "alpic-openai-app",
+    name: "Premier Server mcp",
     version: "0.0.1",
   },
   { capabilities: {} },
 ).registerWidget(
   "magic-8-ball",
   {
-    description: "Magic 8 Ball",
+    description: "server appelant dust",
   },
   {
-    description: "For fortune-telling or seeking advice.",
+    description: "Server allant taper un agent dust spécifique pour de la génération de powerpoint.",
     inputSchema: {
-      question: z.string().describe("The user question."),
+      question: z.string().describe("The user description of the powerpoint that he wants."),
     },
   },
   async ({ question }) => {
     try {
-      // deterministic answer
-      const hash = question
-        .split("")
-        .reduce((acc, char) => acc + char.charCodeAt(0), 0);
-      const answer = Answers[hash % Answers.length];
+      const url = 'https://dust.tt/api/v1/w/'+spaceId+'/assistant/conversations';
+      const options = {
+        method: 'POST',
+        headers: {
+          accept: 'application/json',
+          'content-type': 'application/json',
+          authorization: 'Bearer '+apiKey
+        },
+        body: JSON.stringify({
+          message: {
+            mentions: [{configurationId: agentId}],
+            context: {username: 'slide', timezone: 'Europe/Paris'},
+            content: 'salut'
+          }
+        })
+      };
+      var answer = "aaaaaaa";
+      try {
+        const res = await fetch(url, options);
+        const json = await res.json();
+        answer = JSON.stringify(json, null, 2);
+        console.log(answer);
+      } catch (err) {
+        console.error(err);
+      }
       return {
         structuredContent: { answer },
         content: [],
