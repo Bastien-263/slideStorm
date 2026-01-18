@@ -354,7 +354,7 @@ function PdfUploader() {
               fontSize: "12px",
               lineHeight: "1.5"
             }}>
-              <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+              <pre style={{ margin: 0, whiteSpace: "pre", overflowX: "auto" }}>
                 {tsxFileContent}
               </pre>
             </div>
