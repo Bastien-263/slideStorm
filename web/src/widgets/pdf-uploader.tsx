@@ -11,10 +11,32 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 
 function PdfUploader() {
   const [pdfFile, setPdfFile] = useState<File | null>(null);
-  const [conversionComplete, setConversionComplete] = useState(false);
+  const [pngFiles, setPngFiles] = useState<File[]>([]);
   const [isConverting, setIsConverting] = useState(false);
-  const [pageCount, setPageCount] = useState(0);
+  const [isSending, setIsSending] = useState(false);
+  const [sendComplete, setSendComplete] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const workspaceId = import.meta.env.VITE_WORKSPACE_ID;
+  const agentId = import.meta.env.VITE_AGENT_ID;
+
+  const callDustAPI = async (url: string, body: any) => {
+    if (body instanceof FormData) {
+      body.append('url', url);
+      const response = await fetch('/api/dust-upload', { method: 'POST', body });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      return response.json();
+    }
+
+    const response = await fetch('/api/dust-proxy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, body })
+    });
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    return response.json();
+  };
 
   const convertPdfToPng = async (file: File) => {
     setPdfFile(file);
@@ -25,7 +47,9 @@ function PdfUploader() {
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-      // Convert each page to PNG
+      const pngFilesArray: File[] = [];
+
+      // Convert each page to PNG and create File objects
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
         const viewport = page.getViewport({ scale: 2 });
@@ -37,17 +61,87 @@ function PdfUploader() {
 
         if (context) {
           await page.render({ canvasContext: context, viewport } as any).promise;
-          canvas.toDataURL('image/png'); // Generate PNG (not stored, just converted)
+
+          // Convert canvas to blob then to File
+          const blob = await new Promise<Blob>((resolve) => {
+            canvas.toBlob((blob) => resolve(blob!), 'image/png');
+          });
+
+          const pngFile = new File([blob], `${file.name.replace('.pdf', '')}_page_${pageNum}.png`, { type: 'image/png' });
+          pngFilesArray.push(pngFile);
         }
       }
 
-      setPageCount(pdf.numPages);
-      setConversionComplete(true);
+      setPngFiles(pngFilesArray);
+      setIsConverting(false);
+
+      // Automatically send to Dust
+      await sendToDust(pngFilesArray);
     } catch (error) {
       console.error('Conversion error:', error);
       setError(error instanceof Error ? error.message : 'Unknown error');
-    } finally {
       setIsConverting(false);
+    }
+  };
+
+  const sendToDust = async (files: File[]) => {
+    setIsSending(true);
+
+    try {
+      // Create empty conversation
+      const conversationUrl = `https://dust.tt/api/v1/w/${workspaceId}/assistant/conversations`;
+      const conversationJson = await callDustAPI(conversationUrl, {
+        visibility: 'unlisted',
+        title: null
+      });
+      const convId = conversationJson.conversation?.sId;
+      if (!convId) throw new Error('Failed to create conversation');
+      setConversationId(convId);
+
+      // Upload PNG files
+      for (const file of files) {
+        // Create file entry
+        const fileCreateResponse = await callDustAPI(
+          `https://dust.tt/api/v1/w/${workspaceId}/files`,
+          {
+            contentType: 'image/png',
+            fileName: file.name,
+            fileSize: file.size,
+            useCase: 'conversation',
+            useCaseMetadata: { conversationId: convId }
+          }
+        );
+        const fileId = fileCreateResponse.file?.sId;
+        if (!fileId) throw new Error('Failed to create file entry');
+
+        // Upload file
+        const formData = new FormData();
+        formData.append('file', file);
+        await callDustAPI(`https://dust.tt/api/v1/w/${workspaceId}/files/${fileId}`, formData);
+
+        // Create content fragment
+        await callDustAPI(
+          `https://dust.tt/api/v1/w/${workspaceId}/assistant/conversations/${convId}/content_fragments`,
+          { title: file.name, fileId }
+        );
+      }
+
+      // Send message
+      await callDustAPI(
+        `https://dust.tt/api/v1/w/${workspaceId}/assistant/conversations/${convId}/messages`,
+        {
+          content: `PDF converted: ${pdfFile?.name} (${files.length} pages)`,
+          mentions: agentId ? [{ configurationId: agentId }] : [],
+          context: { username: 'slidestorm', timezone: 'Europe/Paris' }
+        }
+      );
+
+      setSendComplete(true);
+    } catch (error) {
+      console.error('Send error:', error);
+      setError(error instanceof Error ? error.message : 'Unknown error');
+    } finally {
+      setIsSending(false);
     }
   };
 
@@ -64,8 +158,8 @@ function PdfUploader() {
     convertPdfToPng(file);
   };
 
-  // Success state
-  if (conversionComplete) {
+  // Success state - sent to Dust
+  if (sendComplete) {
     return (
       <div className="container" style={{ padding: "20px", maxWidth: "600px" }}>
         <div style={{
@@ -76,11 +170,52 @@ function PdfUploader() {
           borderRadius: "12px",
         }}>
           <div style={{ fontSize: "48px", marginBottom: "15px" }}>✅</div>
-          <h2 style={{ margin: "0 0 10px 0" }}>PDF uploaded successfully</h2>
+          <h2 style={{ margin: "0 0 10px 0" }}>PDF sent to Dust successfully</h2>
           <p style={{ margin: "0", opacity: "0.9" }}>
-            {pdfFile?.name} - {pageCount} page{pageCount > 1 ? 's' : ''} converted to PNG
+            {pdfFile?.name} - {pngFiles.length} page{pngFiles.length > 1 ? 's' : ''} uploaded
+          </p>
+          {conversationId && (
+            <p style={{ margin: "10px 0 0 0", fontSize: "14px", opacity: "0.8" }}>
+              Conversation ID: {conversationId}
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Sending to Dust state
+  if (isSending) {
+    return (
+      <div className="container" style={{ padding: "20px", maxWidth: "600px" }}>
+        <div style={{
+          padding: "40px",
+          textAlign: "center",
+          background: "#e3f2fd",
+          borderRadius: "12px",
+        }}>
+          <div style={{
+            width: "50px",
+            height: "50px",
+            border: "4px solid #2196f3",
+            borderTop: "4px solid transparent",
+            borderRadius: "50%",
+            margin: "0 auto 20px",
+            animation: "spin 1s linear infinite"
+          }}></div>
+          <p style={{ fontSize: "18px", fontWeight: "bold", margin: "0 0 10px 0" }}>
+            Sending to Dust...
+          </p>
+          <p style={{ fontSize: "14px", color: "#666" }}>
+            Uploading {pngFiles.length} page{pngFiles.length > 1 ? 's' : ''}...
           </p>
         </div>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
       </div>
     );
   }
@@ -105,7 +240,7 @@ function PdfUploader() {
             animation: "spin 1s linear infinite"
           }}></div>
           <p style={{ fontSize: "18px", fontWeight: "bold", margin: "0 0 10px 0" }}>
-            Converting...
+            Converting PDF to PNG...
           </p>
           <p style={{ fontSize: "14px", color: "#666" }}>
             {pdfFile?.name}
