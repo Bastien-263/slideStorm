@@ -139,8 +139,8 @@ app.post('/api/dust-stream', cors(), async (req, res) => {
   }
 });
 
-// Mount MCP middleware only on /mcp path
-app.use('/mcp', mcp(server));
+// Mount MCP middleware at root (it handles /mcp internally)
+app.use(mcp(server));
 
 const env = process.env.NODE_ENV || "development";
 
