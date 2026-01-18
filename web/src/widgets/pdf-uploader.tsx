@@ -14,10 +14,12 @@ function PdfUploader() {
   const [conversionComplete, setConversionComplete] = useState(false);
   const [isConverting, setIsConverting] = useState(false);
   const [pageCount, setPageCount] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   const convertPdfToPng = async (file: File) => {
     setPdfFile(file);
     setIsConverting(true);
+    setError(null);
 
     try {
       const arrayBuffer = await file.arrayBuffer();
@@ -42,7 +44,8 @@ function PdfUploader() {
       setPageCount(pdf.numPages);
       setConversionComplete(true);
     } catch (error) {
-      alert(`Conversion error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      console.error('Conversion error:', error);
+      setError(error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setIsConverting(false);
     }
@@ -53,7 +56,8 @@ function PdfUploader() {
     if (!file) return;
 
     if (file.type !== "application/pdf") {
-      alert("Please select a PDF file");
+      console.warn("Please select a PDF file");
+      setError("Please select a PDF file");
       return;
     }
 
@@ -122,6 +126,20 @@ function PdfUploader() {
     <div className="container" style={{ padding: "20px", maxWidth: "600px" }}>
       <h2>Upload PDF</h2>
       <p>Select a PDF file to convert to PNG images</p>
+
+      {error && (
+        <div style={{
+          padding: "15px",
+          marginTop: "20px",
+          background: "#ffebee",
+          color: "#c62828",
+          borderRadius: "8px",
+          border: "1px solid #ef5350"
+        }}>
+          {error}
+        </div>
+      )}
+
       <input
         type="file"
         accept="application/pdf"
