@@ -24,22 +24,60 @@ function PdfUploader() {
 
   const workspaceId = import.meta.env.VITE_WORKSPACE_ID;
   const agentId = import.meta.env.VITE_AGENT_ID;
+  const apiKey = import.meta.env.VITE_API_KEY;
 
-  const callDustAPI = async (url: string, body: any) => {
+  const callDustAPI = async (url: string, body: any, method: string = 'POST', returnText: boolean = false) => {
+    // In development, use proxy to avoid CORS. In production, call Dust directly.
+    const isDev = import.meta.env.DEV;
+
+    if (isDev) {
+      // Development: use proxy
+      if (body instanceof FormData) {
+        body.append('url', url);
+        const response = await fetch('/api/dust-upload', { method: 'POST', body });
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        return response.json();
+      }
+
+      const response = await fetch('/api/dust-proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, body, method, returnText })
+      });
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      return returnText ? response.text() : response.json();
+    }
+
+    // Production: call Dust directly
+    const headers: Record<string, string> = {
+      'authorization': `Bearer ${apiKey}`,
+    };
+
     if (body instanceof FormData) {
-      body.append('url', url);
-      const response = await fetch('/api/dust-upload', { method: 'POST', body });
+      const response = await fetch(url, {
+        method: 'POST',
+        headers,
+        body
+      });
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       return response.json();
     }
 
-    const response = await fetch('/api/dust-proxy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, body })
-    });
+    headers['content-type'] = 'application/json';
+    headers['accept'] = returnText ? 'text/plain' : 'application/json';
+
+    const fetchOptions: RequestInit = {
+      method,
+      headers,
+    };
+
+    if (method === 'POST' && body) {
+      fetchOptions.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(url, fetchOptions);
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-    return response.json();
+    return returnText ? response.text() : response.json();
   };
 
   const convertPdfToPng = async (file: File) => {
@@ -98,11 +136,21 @@ function PdfUploader() {
 
       // Stream conversation events
       const streamUrl = `https://dust.tt/api/v1/w/${workspaceId}/assistant/conversations/${convId}/events`;
-      const response = await fetch('/api/dust-stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: streamUrl })
-      });
+      const isDev = import.meta.env.DEV;
+
+      const response = isDev
+        ? await fetch('/api/dust-stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url: streamUrl })
+          })
+        : await fetch(streamUrl, {
+            method: 'GET',
+            headers: {
+              'accept': 'text/event-stream',
+              'authorization': `Bearer ${apiKey}`,
+            }
+          });
 
       if (!response.ok) throw new Error(`Stream error: ${response.status}`);
       if (!response.body) throw new Error('No response body');
@@ -144,11 +192,7 @@ function PdfUploader() {
 
       // Fetch conversation details to get generated TSX file
       const convDetailsUrl = `https://dust.tt/api/v1/w/${workspaceId}/assistant/conversations/${convId}`;
-      const convDetails = await fetch('/api/dust-proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: convDetailsUrl, method: 'GET' })
-      }).then(r => r.json());
+      const convDetails = await callDustAPI(convDetailsUrl, null, 'GET');
 
       // Find TSX files in agent actions
       const agentMessages = convDetails.conversation?.content
@@ -165,13 +209,7 @@ function PdfUploader() {
 
             // Download TSX file content
             const fileUrl = `https://dust.tt/api/v1/w/${workspaceId}/files/${fileId}`;
-            const fileResponse = await fetch('/api/dust-proxy', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ url: fileUrl, method: 'GET', returnText: true })
-            });
-
-            const fileContent = await fileResponse.text();
+            const fileContent = await callDustAPI(fileUrl, null, 'GET', true);
             console.log('Conversation ID:', convId);
             console.log('TSX file retrieved:', file.title, `(${fileContent.length} chars)`);
 
