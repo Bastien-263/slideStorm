@@ -1,10 +1,16 @@
 import { Swiper, SwiperSlide } from 'swiper/react';
+import { Navigation, Pagination } from 'swiper/modules';
+
+// Import des styles
 import 'swiper/css';
+import 'swiper/css/navigation';
+import 'swiper/css/pagination';
 
 interface Slide {
   id: number;
   image: string;
   title: string;
+  description?: string;
 }
 
 interface SlideCarouselProps {
@@ -12,24 +18,39 @@ interface SlideCarouselProps {
   onSlideChange?: (index: number) => void;
 }
 
-const SlideCarousel = ({ slides }: SlideCarouselProps) => {
-
+const SlideCarousel = ({ slides, onSlideChange }: SlideCarouselProps) => {
   return (
-    <Swiper spaceBetween={50} slidesPerView={1}>
-      {slides.map((slide, index) => (
-        <SwiperSlide key={slide.id || index}>
-          <img 
-            src={slide.image} 
-            alt={slide.title}
-            style={{ 
-              width: '100%', 
-              height: 'auto',
-              objectFit: 'contain' 
-            }}
-          />
-        </SwiperSlide>
-      ))}
-    </Swiper>
+    <div>
+      <span>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</span>
+      <Swiper 
+        spaceBetween={50} 
+        slidesPerView={1}
+        modules={[Navigation, Pagination]} // 👈 Active les modules
+        navigation
+        pagination={{ clickable: true }}
+        onSlideChange={(swiper) => onSlideChange?.(swiper.activeIndex)}
+      >
+        {slides.map((slide, index) => (
+          <SwiperSlide key={slide.id || index}>
+            <div className="slide-content">
+              <img
+                src={slide.image}
+                alt={slide.title}
+                style={{
+                  width: '100%',
+                  height: 'auto',
+                  maxHeight: '500px',
+                  objectFit: 'contain'
+                }}
+              />
+              <h3>{slide.title}</h3>
+              {slide.description && <p>{slide.description}</p>}
+            </div>
+          </SwiperSlide>
+        ))}
+      </Swiper>
+    </div>
+    
   );
 };
 

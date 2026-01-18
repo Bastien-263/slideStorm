@@ -1,12 +1,10 @@
 import "@/index.css";
 
 import { mountWidget } from "skybridge/web";
-import { useToolInfo } from "../helpers";
+
 import SlideCarousel from "../Component/Carousel/SlideCarousel";
 
 function CarouselTest() {
-    useToolInfo<"carousel">();
-
 
   const presentationData = [
     {

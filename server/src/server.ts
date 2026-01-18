@@ -82,7 +82,7 @@ const server = new McpServer(
 .registerWidget(
   "carousel",
   {
-    description: "Upload and convert PDF files to PNG images",
+    description: "utilise pour afficher un carousel de test",
   },
   {
     description: "test de carousel",
