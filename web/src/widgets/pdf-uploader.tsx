@@ -301,7 +301,7 @@ function PdfUploader() {
   // Success state - slides generated
   if (sendComplete) {
     return (
-      <div className="container" style={{ padding: "20px", maxWidth: "800px", height: "100%", overflow: "auto" }}>
+      <div className="container" style={{ padding: "20px", maxWidth: "800px" }}>
         <div style={{
           padding: "30px",
           textAlign: "center",
@@ -348,16 +348,15 @@ function PdfUploader() {
               background: "#1e1e1e",
               color: "#d4d4d4",
               borderRadius: "8px",
-              height: "400px",
+              maxHeight: "400px",
               overflow: "auto",
               fontFamily: "'Courier New', monospace",
               fontSize: "12px",
-              lineHeight: "1.5",
-              position: "relative"
+              lineHeight: "1.5"
             }}>
-              <code style={{ display: "block", whiteSpace: "pre" }}>
-                {tsxFileContent}
-              </code>
+              <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                <code>{tsxFileContent}</code>
+              </pre>
             </div>
           </div>
         )}
