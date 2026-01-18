@@ -34,7 +34,7 @@ function CarouselTest() {
     ];
 
   return (
-    <div className="min-h-screen bg-background py-12 px-4">
+    <div className="bg-background py-12 px-4" style={{ minHeight: '600px', maxHeight: '80vh' }}>
         <SlideCarousel slides={presentationData}></SlideCarousel>
     </div>
     

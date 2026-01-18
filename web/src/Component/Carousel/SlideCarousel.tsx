@@ -20,7 +20,11 @@ interface SlideCarouselProps {
 
 const SlideCarousel = ({ slides, onSlideChange }: SlideCarouselProps) => {
   return (
-    <div>
+    <div style={{ 
+      width: '100%', 
+      maxHeight: '80vh', 
+      overflow: 'hidden' 
+    }}>
       <span>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</span>
       <Swiper 
         spaceBetween={50} 
