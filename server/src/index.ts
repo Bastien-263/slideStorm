@@ -10,6 +10,10 @@ import server from "./server.js";
 
 const app = express() as Express & { vite: ViteDevServer };
 
+// Configure body parsers first
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
 import multer from 'multer';
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
@@ -43,9 +47,6 @@ app.post('/api/dust-upload', upload.single('file'), async (req, res) => {
     res.status(500).json({ error: String(error) });
   }
 });
-
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Dust API proxy for JSON and text requests
 app.post('/api/dust-proxy', async (req, res) => {
@@ -158,7 +159,13 @@ if (env === "production") {
   const __dirname = path.dirname(__filename);
 
   app.use("/assets", cors());
-  app.use("/assets", express.static(path.join(__dirname, "assets")));
+  app.use("/assets", express.static(path.join(__dirname, "assets"), {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('.mjs')) {
+        res.setHeader('Content-Type', 'application/javascript');
+      }
+    }
+  }));
 }
 
 app.listen(3000, (error) => {
