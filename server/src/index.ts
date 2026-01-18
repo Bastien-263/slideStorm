@@ -25,7 +25,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 
 // Dust API proxy for multipart file uploads
 console.log('[STARTUP] Registering POST /widgets/api/dust-upload');
-app.post('/widgets/api/dust-upload', upload.single('file'), async (req, res) => {
+app.post('/widgets/api/dust-upload', cors(), upload.single('file'), async (req, res) => {
   console.log('[ROUTE HIT] POST /widgets/api/dust-upload');
   try {
     const { url } = req.body;
@@ -58,7 +58,7 @@ app.post('/widgets/api/dust-upload', upload.single('file'), async (req, res) => 
 
 // Dust API proxy for JSON and text requests
 console.log('[STARTUP] Registering POST /widgets/api/dust-proxy');
-app.post('/widgets/api/dust-proxy', async (req, res) => {
+app.post('/widgets/api/dust-proxy', cors(), async (req, res) => {
   console.log('[ROUTE HIT] POST /widgets/api/dust-proxy');
   try {
     const { url, body, method = 'POST', returnText = false } = req.body;

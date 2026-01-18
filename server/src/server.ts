@@ -213,6 +213,17 @@ const server = new McpServer(
   "pdf-uploader",
   {
     description: "Upload PDF and send to Dust assistant",
+    _meta: {
+      ui: {
+        csp: {
+          connectDomains: [
+            "https://*.ngrok.io",
+            "https://*.ngrok-free.app",
+            "http://localhost:3000"
+          ],
+        },
+      },
+    },
   },
   {
     description: "Interactive PDF uploader widget",
