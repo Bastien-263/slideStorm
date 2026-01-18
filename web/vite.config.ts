@@ -7,6 +7,7 @@ import { defineConfig } from "vite";
 export default defineConfig({
   plugins: [skybridge(), react()],
   root: __dirname,
+  publicDir: path.resolve(__dirname, "./public"),
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),

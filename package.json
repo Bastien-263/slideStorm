@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "skybridge dev",
-    "build": "skybridge build",
+    "build": "skybridge build && shx cp -r web/public dist/",
     "start": "skybridge start",
     "inspector": "mcp-inspector http://localhost:3000/mcp",
     "server:build": "tsc -p tsconfig.server.json",

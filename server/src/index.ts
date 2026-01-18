@@ -168,10 +168,24 @@ if (env === "production") {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
 
+  // Serve public files (frame-runner.html, etc.)
+  const publicPath = path.join(__dirname, "public");
+  console.log('[STARTUP] Serving static public files from:', publicPath);
+
+  app.use(cors());
+  app.use(express.static(publicPath, {
+    setHeaders: (res, filePath) => {
+      console.log('Serving public file:', filePath);
+      if (filePath.endsWith('.html')) {
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+      }
+    }
+  }));
+
   app.use("/assets", cors());
   app.use("/assets", express.static(path.join(__dirname, "assets"), {
     setHeaders: (res, filePath) => {
-      console.log('Serving file:', filePath);
+      console.log('Serving asset file:', filePath);
       if (filePath.endsWith('.mjs') || filePath.endsWith('.js')) {
         res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
       }
