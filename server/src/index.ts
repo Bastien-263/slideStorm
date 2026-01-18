@@ -157,8 +157,9 @@ if (env === "production") {
   app.use("/assets", cors());
   app.use("/assets", express.static(path.join(__dirname, "assets"), {
     setHeaders: (res, filePath) => {
-      if (filePath.endsWith('.mjs')) {
-        res.setHeader('Content-Type', 'application/javascript');
+      console.log('Serving file:', filePath);
+      if (filePath.endsWith('.mjs') || filePath.endsWith('.js')) {
+        res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
       }
     }
   }));
