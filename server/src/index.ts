@@ -10,6 +10,12 @@ import server from "./server.js";
 
 const app = express() as Express & { vite: ViteDevServer };
 
+// Debug middleware to log all requests
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
+  next();
+});
+
 // Configure body parsers first
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -18,7 +24,9 @@ import multer from 'multer';
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 // Dust API proxy for multipart file uploads
+console.log('[STARTUP] Registering POST /api/dust-upload');
 app.post('/api/dust-upload', upload.single('file'), async (req, res) => {
+  console.log('[ROUTE HIT] POST /api/dust-upload');
   try {
     const { url } = req.body;
     if (!url || !req.file) return res.status(400).json({ error: 'Missing url or file' });
@@ -49,7 +57,9 @@ app.post('/api/dust-upload', upload.single('file'), async (req, res) => {
 });
 
 // Dust API proxy for JSON and text requests
+console.log('[STARTUP] Registering POST /api/dust-proxy');
 app.post('/api/dust-proxy', async (req, res) => {
+  console.log('[ROUTE HIT] POST /api/dust-proxy');
   try {
     const { url, body, method = 'POST', returnText = false } = req.body;
 
@@ -86,8 +96,11 @@ app.post('/api/dust-proxy', async (req, res) => {
 });
 
 // Dust API streaming endpoint for SSE events
+console.log('[STARTUP] Registering OPTIONS /api/dust-stream');
 app.options('/api/dust-stream', cors());
+console.log('[STARTUP] Registering POST /api/dust-stream');
 app.post('/api/dust-stream', cors(), async (req, res) => {
+  console.log('[ROUTE HIT] POST /api/dust-stream');
   try {
     const { url } = req.body;
     if (!url) return res.status(400).json({ error: 'Missing url' });
@@ -140,6 +153,7 @@ app.post('/api/dust-stream', cors(), async (req, res) => {
 });
 
 // Mount MCP middleware at root (it handles /mcp internally)
+console.log('[STARTUP] Mounting MCP middleware');
 app.use(mcp(server));
 
 const env = process.env.NODE_ENV || "development";
