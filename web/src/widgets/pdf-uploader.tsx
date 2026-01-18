@@ -266,7 +266,7 @@ function PdfUploader() {
   // Generating slides state
   if (isReceivingResponse) {
     return (
-      <div className="container" style={{ padding: "20px", maxWidth: "600px" }}>
+      <div style={{ padding: "20px", maxWidth: "600px" }}>
         <div style={{
           padding: "40px",
           textAlign: "center",
@@ -301,7 +301,7 @@ function PdfUploader() {
   // Success state - slides generated
   if (sendComplete) {
     return (
-      <div className="container" style={{ padding: "20px", maxWidth: "800px" }}>
+      <div style={{ padding: "20px", maxWidth: "800px" }}>
         <div style={{
           padding: "30px",
           textAlign: "center",
@@ -367,7 +367,7 @@ function PdfUploader() {
   // Sending to Dust state
   if (isSending) {
     return (
-      <div className="container" style={{ padding: "20px", maxWidth: "600px" }}>
+      <div style={{ padding: "20px", maxWidth: "600px" }}>
         <div style={{
           padding: "40px",
           textAlign: "center",
@@ -406,7 +406,7 @@ function PdfUploader() {
 
   // Main form
   return (
-    <div className="container" style={{ padding: "20px", maxWidth: "600px" }}>
+    <div style={{ padding: "20px", maxWidth: "600px" }}>
       <h2>Send PDF to Dust</h2>
 
       {error && (
