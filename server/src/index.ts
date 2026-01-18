@@ -27,6 +27,9 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 
 console.log('[STARTUP] Registering POST /widgets/api/dust-upload');
 app.post('/widgets/api/dust-upload', cors(), upload.single('file'), async (req, res) => {
   console.log('[ROUTE HIT] POST /widgets/api/dust-upload');
+  console.log('[DEBUG] Request body keys:', Object.keys(req.body));
+  console.log('[DEBUG] Has file:', !!req.file);
+  console.log('[DEBUG] URL:', req.body.url);
   try {
     const { url } = req.body;
     if (!url || !req.file) return res.status(400).json({ error: 'Missing url or file' });
@@ -52,6 +55,7 @@ app.post('/widgets/api/dust-upload', cors(), upload.single('file'), async (req, 
 
     res.json(JSON.parse(responseText));
   } catch (error) {
+    console.error('[ERROR] /widgets/api/dust-upload error:', error);
     res.status(500).json({ error: String(error) });
   }
 });
