@@ -25,7 +25,6 @@ const SlideCarousel = ({ slides, onSlideChange }: SlideCarouselProps) => {
       maxHeight: '80vh', 
       overflow: 'hidden' 
     }}>
-      <span>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</span>
       <Swiper 
         spaceBetween={50} 
         slidesPerView={1}
