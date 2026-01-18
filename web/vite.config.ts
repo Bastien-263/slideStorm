@@ -8,6 +8,10 @@ export default defineConfig({
   plugins: [skybridge(), react()],
   root: __dirname,
   publicDir: path.resolve(__dirname, "./public"),
+  build: {
+    // Ensure public files are copied to the build output
+    copyPublicDir: true,
+  },
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
