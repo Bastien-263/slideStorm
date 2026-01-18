@@ -2,6 +2,7 @@ import "@/index.css";
 import { useState } from "react";
 import { mountWidget } from "skybridge/web";
 import * as pdfjsLib from "pdfjs-dist";
+import React from 'react';
 
 // Configure PDF.js worker for client-side PDF processing
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
@@ -21,10 +22,66 @@ function PdfUploader() {
   const [isReceivingResponse, setIsReceivingResponse] = useState(false);
   const [tsxFileContent, setTsxFileContent] = useState<string | null>(null);
   const [tsxFileName, setTsxFileName] = useState<string | null>(null);
+  const iframeRef = React.useRef<HTMLIFrameElement>(null);
+  const [iframeReady, setIframeReady] = React.useState(false);
+  const [renderError, setRenderError] = React.useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = React.useState(false);
+  const fullscreenContainerRef = React.useRef<HTMLDivElement>(null);
 
   const workspaceId = import.meta.env.VITE_WORKSPACE_ID;
   const agentId = import.meta.env.VITE_AGENT_ID;
   const proxyUrl = import.meta.env.VITE_PROXY_URL || 'http://localhost:3000';
+
+  // Handle iframe communication
+  React.useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data.type === 'IFRAME_READY') {
+        setIframeReady(true);
+      } else if (event.data.type === 'RENDER_ERROR') {
+        setRenderError(event.data.error);
+      } else if (event.data.type === 'RENDER_SUCCESS') {
+        setRenderError(null);
+      }
+    };
+
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
+  // Send code to iframe when ready
+  React.useEffect(() => {
+    if (iframeReady && iframeRef.current && tsxFileContent) {
+      iframeRef.current.contentWindow?.postMessage({
+        type: 'EXECUTE_CODE',
+        code: tsxFileContent
+      }, '*');
+    }
+  }, [iframeReady, tsxFileContent]);
+
+  // Handle fullscreen changes
+  React.useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // Toggle fullscreen presentation mode
+  const toggleFullscreen = async () => {
+    if (!fullscreenContainerRef.current) return;
+
+    try {
+      if (!document.fullscreenElement) {
+        await fullscreenContainerRef.current.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch (err) {
+      console.error('Error toggling fullscreen:', err);
+    }
+  };
 
   const callDustAPI = async (url: string, body: any, method: string = 'POST', returnText: boolean = false) => {
     if (body instanceof FormData) {
@@ -310,49 +367,100 @@ function PdfUploader() {
           </p>
         </div>
         {tsxFileContent && (
-          <div style={{
-            marginTop: "20px",
-            padding: "20px",
-            background: "#f5f5f5",
-            borderRadius: "8px",
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
-              <h3 style={{ margin: 0 }}>{tsxFileName}</h3>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(tsxFileContent);
-                  alert('TSX content copied to clipboard!');
-                }}
+            <div style={{ marginTop: "20px" }}>
+              <div style={{ marginBottom: "10px", display: "flex", gap: "10px", alignItems: "center" }}>
+                <h3 style={{ margin: 0, flex: 1 }}>{tsxFileName}</h3>
+                <button
+                  onClick={toggleFullscreen}
+                  style={{
+                    padding: "8px 16px",
+                    background: "#4caf50",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    fontWeight: "bold"
+                  }}
+                >
+                  {isFullscreen ? '✕ Exit Presentation' : '⛶ Presentation Mode'}
+                </button>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(tsxFileContent);
+                    alert('TSX content copied to clipboard!');
+                  }}
+                  style={{
+                    padding: "8px 16px",
+                    background: "#2196f3",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontSize: "14px",
+                    cursor: "pointer",
+                    fontWeight: "bold"
+                  }}
+                >
+                  Copy Code
+                </button>
+              </div>
+
+              {/* Iframe wrapper with strict 16:9 aspect ratio */}
+              <div
+                ref={fullscreenContainerRef}
                 style={{
-                  padding: "8px 16px",
-                  background: "#2196f3",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "6px",
-                  fontSize: "14px",
-                  cursor: "pointer",
-                  fontWeight: "bold"
+                  background: isFullscreen ? "#000" : "#f5f5f5",
+                  borderRadius: isFullscreen ? "0" : "8px",
+                  padding: isFullscreen ? "0" : "20px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: isFullscreen ? "100vw" : "auto",
+                  height: isFullscreen ? "100vh" : "auto"
                 }}
               >
-                Copy Code
-              </button>
+                <div style={{
+                  width: "100%",
+                  maxWidth: isFullscreen ? "none" : "1200px",
+                  aspectRatio: "16 / 9",
+                  position: "relative",
+                  height: isFullscreen ? "100%" : "auto"
+                }}>
+                  <iframe
+                    ref={iframeRef}
+                    src="/frame-runner.html"
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      width: "100%",
+                      height: "100%",
+                      border: "none",
+                      borderRadius: isFullscreen ? "0" : "8px",
+                      background: "white"
+                    }}
+                    sandbox="allow-scripts allow-same-origin"
+                    title="TSX Frame Renderer"
+                  />
+                </div>
+              </div>
+
+              {/* Error display */}
+              {renderError && (
+                <div style={{
+                  padding: "10px",
+                  background: "#ffebee",
+                  color: "#c62828",
+                  borderRadius: "8px",
+                  marginTop: "10px",
+                  fontFamily: "monospace",
+                  fontSize: "12px",
+                  whiteSpace: "pre-wrap"
+                }}>
+                  {renderError}
+                </div>
+              )}
             </div>
-            <div style={{
-              padding: "15px",
-              background: "#1e1e1e",
-              color: "#d4d4d4",
-              borderRadius: "8px",
-              maxHeight: "400px",
-              overflow: "auto",
-              fontFamily: "'Courier New', monospace",
-              fontSize: "12px",
-              lineHeight: "1.5"
-            }}>
-              <pre style={{ margin: 0, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
-                <code>{tsxFileContent}</code>
-              </pre>
-            </div>
-          </div>
         )}
       </div>
     );

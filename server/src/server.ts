@@ -210,9 +210,9 @@ const server = new McpServer(
   }
 )
 .registerWidget(
-  "pdf-uploader",
+  "create-slides",
   {
-    description: "Upload PDF and send to Dust assistant",
+    description: "Create beautiful presentation slides from your PDF documents. Upload a PDF and optionally specify slide template preferences to generate interactive 16:9 slides with charts and visualizations.",
     _meta: {
       ui: {
         csp: {
@@ -226,12 +226,12 @@ const server = new McpServer(
     },
   },
   {
-    description: "Interactive PDF uploader widget",
+    description: "Main entry point for SlideStorm - transforms PDFs into interactive presentation slides",
   },
   async () => {
     // Widget logic is handled entirely client-side in the React component
     return {
-      content: [{ type: "text", text: "Widget loaded" }],
+      content: [{ type: "text", text: "SlideStorm widget loaded" }],
       isError: false,
     };
   }

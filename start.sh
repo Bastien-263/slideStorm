@@ -11,6 +11,14 @@ echo -e "${BLUE}========================================${NC}"
 echo -e "${BLUE}  SlideStorm - Ngrok + Server Startup  ${NC}"
 echo -e "${BLUE}========================================${NC}\n"
 
+# Use Node.js 24 via nvm
+if [ -s "$HOME/.nvm/nvm.sh" ]; then
+    echo -e "${YELLOW}Loading nvm and switching to Node 24...${NC}"
+    . "$HOME/.nvm/nvm.sh"
+    nvm use 24
+    echo ""
+fi
+
 # Check if ngrok is installed
 if ! command -v ngrok &> /dev/null; then
     echo -e "${RED}Error: ngrok is not installed${NC}"
