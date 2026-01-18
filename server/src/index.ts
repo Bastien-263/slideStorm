@@ -11,7 +11,7 @@ import server from "./server.js";
 const app = express() as Express & { vite: ViteDevServer };
 
 // Debug middleware to log all requests
-app.use((req, res, next) => {
+app.use((req, _res, next) => {
   console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
   next();
 });
