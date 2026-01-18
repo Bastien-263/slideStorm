@@ -35,11 +35,15 @@ function PdfUploader() {
   // Handle iframe communication
   React.useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
+      console.log('[WIDGET] Received message from iframe:', event.data);
       if (event.data.type === 'IFRAME_READY') {
+        console.log('[WIDGET] Iframe is ready!');
         setIframeReady(true);
       } else if (event.data.type === 'RENDER_ERROR') {
+        console.error('[WIDGET] Render error from iframe:', event.data.error);
         setRenderError(event.data.error);
       } else if (event.data.type === 'RENDER_SUCCESS') {
+        console.log('[WIDGET] Render success!');
         setRenderError(null);
       }
     };
@@ -50,7 +54,9 @@ function PdfUploader() {
 
   // Send code to iframe when ready
   React.useEffect(() => {
+    console.log('[WIDGET] Checking if should send code:', { iframeReady, hasIframeRef: !!iframeRef.current, hasTsxContent: !!tsxFileContent });
     if (iframeReady && iframeRef.current && tsxFileContent) {
+      console.log('[WIDGET] Sending TSX code to iframe, length:', tsxFileContent.length);
       iframeRef.current.contentWindow?.postMessage({
         type: 'EXECUTE_CODE',
         code: tsxFileContent
@@ -429,6 +435,8 @@ function PdfUploader() {
                   <iframe
                     ref={iframeRef}
                     src="/frame-runner.html"
+                    onLoad={() => console.log('[WIDGET] Iframe loaded successfully')}
+                    onError={(e) => console.error('[WIDGET] Iframe load error:', e)}
                     style={{
                       position: "absolute",
                       top: 0,
@@ -443,6 +451,21 @@ function PdfUploader() {
                     title="TSX Frame Renderer"
                   />
                 </div>
+              </div>
+
+              {/* Debug info */}
+              <div style={{
+                padding: "10px",
+                background: "#e3f2fd",
+                color: "#1976d2",
+                borderRadius: "8px",
+                marginTop: "10px",
+                fontSize: "12px",
+                fontFamily: "monospace"
+              }}>
+                <div>Iframe Ready: {iframeReady ? '✓' : '⏳'}</div>
+                <div>TSX Content: {tsxFileContent ? `✓ (${tsxFileContent.length} chars)` : '✗'}</div>
+                <div>Iframe Src: /frame-runner.html</div>
               </div>
 
               {/* Error display */}
