@@ -1,5 +1,9 @@
 import { McpServer } from "skybridge/server";
 import "dotenv/config";
+import { z } from "zod";
+
+const workspaceId = process.env.WORKSPACE_ID;
+const apiKey = process.env.API_KEY;
 
 const server = new McpServer(
   {
@@ -7,6 +11,203 @@ const server = new McpServer(
     version: "0.0.1",
   },
   { capabilities: {} },
+)
+.registerTool(
+  "dust_api_call",
+  {
+    description: "Make API calls to Dust (conversations, files, messages, etc.)",
+    inputSchema: {
+      endpoint: z.string().describe("API endpoint path (e.g., '/assistant/conversations')"),
+      method: z.enum(["GET", "POST"]).default("POST"),
+      body: z.any().optional().describe("Request body as JSON"),
+    },
+  },
+  async ({ endpoint, method, body }) => {
+    const url = `https://dust.tt/api/v1/w/${workspaceId}${endpoint}`;
+
+    const headers: Record<string, string> = {
+      'authorization': `Bearer ${apiKey}`,
+      'accept': 'application/json',
+    };
+
+    const fetchOptions: RequestInit = {
+      method,
+      headers,
+    };
+
+    if (method === 'POST' && body) {
+      headers['content-type'] = 'application/json';
+      fetchOptions.body = JSON.stringify(body);
+    }
+
+    const response = await fetch(url, fetchOptions);
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        content: [{ type: "text", text: JSON.stringify({ error: data, status: response.status }) }],
+        isError: true,
+      };
+    }
+
+    return {
+      content: [{ type: "text", text: JSON.stringify(data) }],
+      isError: false,
+    };
+  }
+)
+.registerTool(
+  "dust_upload_file",
+  {
+    description: "Upload a file (PNG image) to Dust",
+    inputSchema: {
+      fileId: z.string().describe("File ID from Dust file creation"),
+      fileData: z.string().describe("Base64 encoded file data"),
+      fileName: z.string().describe("Original file name"),
+    },
+  },
+  async ({ fileId, fileData, fileName }) => {
+    const url = `https://dust.tt/api/v1/w/${workspaceId}/files/${fileId}`;
+
+    // Decode base64 to buffer
+    const buffer = Buffer.from(fileData, 'base64');
+
+    // Create FormData
+    const FormData = (await import('form-data')).default;
+    const formData = new FormData();
+    formData.append('file', buffer, {
+      filename: fileName,
+      contentType: 'image/png',
+    });
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'authorization': `Bearer ${apiKey}`,
+        ...formData.getHeaders(),
+      },
+      body: formData as any,
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        content: [{ type: "text", text: JSON.stringify({ error: data, status: response.status }) }],
+        isError: true,
+      };
+    }
+
+    return {
+      content: [{ type: "text", text: JSON.stringify(data) }],
+      isError: false,
+    };
+  }
+)
+.registerTool(
+  "dust_get_file",
+  {
+    description: "Download a file (TSX) from Dust",
+    inputSchema: {
+      fileId: z.string().describe("File ID to download"),
+    },
+  },
+  async ({ fileId }) => {
+    const url = `https://dust.tt/api/v1/w/${workspaceId}/files/${fileId}`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'authorization': `Bearer ${apiKey}`,
+        'accept': 'text/plain',
+      },
+    });
+
+    const text = await response.text();
+
+    if (!response.ok) {
+      return {
+        content: [{ type: "text", text: JSON.stringify({ error: text, status: response.status }) }],
+        isError: true,
+      };
+    }
+
+    return {
+      content: [{ type: "text", text }],
+      isError: false,
+    };
+  }
+)
+.registerTool(
+  "dust_stream_events",
+  {
+    description: "Stream conversation events from Dust (waits for agent to finish)",
+    inputSchema: {
+      conversationId: z.string().describe("Conversation ID to stream"),
+    },
+  },
+  async ({ conversationId }) => {
+    const url = `https://dust.tt/api/v1/w/${workspaceId}/assistant/conversations/${conversationId}/events`;
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'authorization': `Bearer ${apiKey}`,
+        'accept': 'text/event-stream',
+      },
+    });
+
+    if (!response.ok) {
+      return {
+        content: [{ type: "text", text: JSON.stringify({ error: 'Stream failed', status: response.status }) }],
+        isError: true,
+      };
+    }
+
+    // Read the stream until agent is done
+    const reader = response.body?.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let agentDone = false;
+
+    if (!reader) {
+      return {
+        content: [{ type: "text", text: JSON.stringify({ error: 'No response body' }) }],
+        isError: true,
+      };
+    }
+
+    while (!agentDone) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (line.startsWith('data: ')) {
+          const jsonStr = line.slice(6).trim();
+          if (!jsonStr || jsonStr === 'done') continue;
+
+          try {
+            const event = JSON.parse(jsonStr);
+            if (event.data?.type === 'agent_message_done') {
+              agentDone = true;
+              break;
+            }
+          } catch (e) {
+            // Skip invalid JSON
+          }
+        }
+      }
+    }
+
+    return {
+      content: [{ type: "text", text: JSON.stringify({ done: true }) }],
+      isError: false,
+    };
+  }
 )
 .registerWidget(
   "pdf-uploader",
