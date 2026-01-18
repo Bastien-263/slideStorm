@@ -29,12 +29,12 @@ function PdfUploader() {
     // Always use proxy (both dev and production) to avoid CORS
     if (body instanceof FormData) {
       body.append('url', url);
-      const response = await fetch('/_proxy/dust-upload', { method: 'POST', body });
+      const response = await fetch('/widgets/api/dust-upload', { method: 'POST', body });
       if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       return response.json();
     }
 
-    const response = await fetch('/_proxy/dust-proxy', {
+    const response = await fetch('/widgets/api/dust-proxy', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url, body, method, returnText })
@@ -99,7 +99,7 @@ function PdfUploader() {
 
       // Stream conversation events
       const streamUrl = `https://dust.tt/api/v1/w/${workspaceId}/assistant/conversations/${convId}/events`;
-      const response = await fetch('/_proxy/dust-stream', {
+      const response = await fetch('/widgets/api/dust-stream', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: streamUrl })

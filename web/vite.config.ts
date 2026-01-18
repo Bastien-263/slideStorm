@@ -14,7 +14,7 @@ export default defineConfig({
   },
   server: {
     proxy: {
-      '/_proxy': {
+      '/widgets/api': {
         target: 'http://localhost:3000',
         changeOrigin: true,
       },

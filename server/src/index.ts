@@ -24,9 +24,9 @@ import multer from 'multer';
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 // Dust API proxy for multipart file uploads
-console.log('[STARTUP] Registering POST /_proxy/dust-upload');
-app.post('/_proxy/dust-upload', upload.single('file'), async (req, res) => {
-  console.log('[ROUTE HIT] POST /api/dust-upload');
+console.log('[STARTUP] Registering POST /widgets/api/dust-upload');
+app.post('/widgets/api/dust-upload', upload.single('file'), async (req, res) => {
+  console.log('[ROUTE HIT] POST /widgets/api/dust-upload');
   try {
     const { url } = req.body;
     if (!url || !req.file) return res.status(400).json({ error: 'Missing url or file' });
@@ -57,9 +57,9 @@ app.post('/_proxy/dust-upload', upload.single('file'), async (req, res) => {
 });
 
 // Dust API proxy for JSON and text requests
-console.log('[STARTUP] Registering POST /_proxy/dust-proxy');
-app.post('/_proxy/dust-proxy', async (req, res) => {
-  console.log('[ROUTE HIT] POST /api/dust-proxy');
+console.log('[STARTUP] Registering POST /widgets/api/dust-proxy');
+app.post('/widgets/api/dust-proxy', async (req, res) => {
+  console.log('[ROUTE HIT] POST /widgets/api/dust-proxy');
   try {
     const { url, body, method = 'POST', returnText = false } = req.body;
 
@@ -96,11 +96,11 @@ app.post('/_proxy/dust-proxy', async (req, res) => {
 });
 
 // Dust API streaming endpoint for SSE events
-console.log('[STARTUP] Registering OPTIONS /_proxy/dust-stream');
-app.options('/_proxy/dust-stream', cors());
-console.log('[STARTUP] Registering POST /_proxy/dust-stream');
-app.post('/_proxy/dust-stream', cors(), async (req, res) => {
-  console.log('[ROUTE HIT] POST /api/dust-stream');
+console.log('[STARTUP] Registering OPTIONS /widgets/api/dust-stream');
+app.options('/widgets/api/dust-stream', cors());
+console.log('[STARTUP] Registering POST /widgets/api/dust-stream');
+app.post('/widgets/api/dust-stream', cors(), async (req, res) => {
+  console.log('[ROUTE HIT] POST /widgets/api/dust-stream');
   try {
     const { url } = req.body;
     if (!url) return res.status(400).json({ error: 'Missing url' });
