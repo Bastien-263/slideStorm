@@ -22,6 +22,7 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
   <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://unpkg.com/recharts@2.12.7/dist/Recharts.js"></script>
+  <script src="https://unpkg.com/lucide@0.263.1/dist/umd/lucide.min.js"></script>
   <style>
     body {
       margin: 0;
@@ -58,6 +59,13 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
   <script type="text/babel" data-type="module">
     const { useState, useEffect, useMemo, useCallback } = React;
 
+    // Custom hooks that Dust might use
+    const useFile = (fileId) => {
+      // Placeholder for file loading - returns null for now
+      // In a real implementation, this would fetch file data
+      return null;
+    };
+
     // Simple Button component
     const Button = ({ children, variant, size, disabled, className = '', onClick, ...props }) => {
       const baseClasses = 'inline-flex items-center justify-center transition-all';
@@ -83,61 +91,63 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
       );
     };
 
-    // Lucide icons (common implementations)
-    const ChevronLeft = ({ className, ...props }) => (
-      <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-        <polyline points="15 18 9 12 15 6"></polyline>
-      </svg>
-    );
+    // Create a generic icon component factory that uses lucide dynamically
+    const createLucideIcon = (iconName) => {
+      return ({ className, size = 24, ...props }) => {
+        const ref = React.useRef(null);
 
-    const ChevronRight = ({ className, ...props }) => (
-      <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-        <polyline points="9 18 15 12 9 6"></polyline>
-      </svg>
-    );
+        React.useEffect(() => {
+          if (ref.current && typeof lucide !== 'undefined' && lucide.createIcons) {
+            // Clear previous content
+            ref.current.innerHTML = '';
 
-    const ArrowLeft = ({ className, ...props }) => (
-      <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-        <line x1="19" y1="12" x2="5" y2="12"></line>
-        <polyline points="12 19 5 12 12 5"></polyline>
-      </svg>
-    );
+            // Create icon element
+            const iconElement = document.createElement('i');
+            iconElement.setAttribute('data-lucide', iconName.toLowerCase().replace(/([A-Z])/g, '-$1').replace(/^-/, ''));
+            ref.current.appendChild(iconElement);
 
-    const ArrowRight = ({ className, ...props }) => (
-      <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-        <line x1="5" y1="12" x2="19" y2="12"></line>
-        <polyline points="12 5 19 12 12 19"></polyline>
-      </svg>
-    );
+            // Initialize lucide icons
+            lucide.createIcons();
+          }
+        }, [iconName]);
 
-    const CheckCircle = ({ className, ...props }) => (
-      <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-        <polyline points="22 4 12 14.01 9 11.01"></polyline>
-      </svg>
-    );
+        return <span ref={ref} className={className} style={{ display: 'inline-flex', width: size, height: size }} {...props}></span>;
+      };
+    };
 
-    const XCircle = ({ className, ...props }) => (
-      <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-        <circle cx="12" cy="12" r="10"></circle>
-        <line x1="15" y1="9" x2="9" y2="15"></line>
-        <line x1="9" y1="9" x2="15" y2="15"></line>
-      </svg>
-    );
+    // Export all common lucide icons as React components dynamically
+    const iconNames = [
+      'ChevronLeft', 'ChevronRight', 'ArrowLeft', 'ArrowRight', 'CheckCircle', 'XCircle',
+      'TrendingUp', 'TrendingDown', 'Heart', 'Star', 'Users', 'Calendar', 'Clock', 'Mail',
+      'Phone', 'MapPin', 'AlertCircle', 'Info', 'Zap', 'Award', 'Target', 'Lightbulb',
+      'Briefcase', 'FileText', 'Sparkles', 'Home', 'Search', 'Settings', 'Menu', 'X',
+      'Plus', 'Minus', 'Edit', 'Trash', 'Save', 'Download', 'Upload', 'Share', 'Copy',
+      'Check', 'AlertTriangle', 'HelpCircle', 'Eye', 'EyeOff', 'Lock', 'Unlock', 'Key',
+      'User', 'UserPlus', 'UserMinus', 'Bell', 'BellOff', 'MessageCircle', 'MessageSquare',
+      'Send', 'Inbox', 'Archive', 'Folder', 'File', 'Image', 'Video', 'Music', 'Code',
+      'Terminal', 'Database', 'Server', 'Cloud', 'CloudOff', 'Wifi', 'WifiOff', 'Bluetooth',
+      'Battery', 'BatteryCharging', 'Power', 'Loader', 'RefreshCw', 'RotateCw', 'RotateCcw',
+      'ChevronUp', 'ChevronDown', 'ChevronsUp', 'ChevronsDown', 'ChevronsLeft', 'ChevronsRight',
+      'ArrowUp', 'ArrowDown', 'ArrowUpRight', 'ArrowDownRight', 'ArrowUpLeft', 'ArrowDownLeft',
+      'ExternalLink', 'Link', 'LinkOff', 'Maximize', 'Minimize', 'ZoomIn', 'ZoomOut',
+      'Filter', 'Sliders', 'Grid', 'List', 'LayoutGrid', 'LayoutList', 'Columns', 'Rows',
+      'Circle', 'Square', 'Triangle', 'Hexagon', 'Flag', 'Bookmark', 'Tag', 'Package',
+      'ShoppingCart', 'ShoppingBag', 'CreditCard', 'DollarSign', 'TrendingDown', 'BarChart',
+      'PieChart', 'Activity', 'GitBranch', 'GitCommit', 'GitMerge', 'Github', 'Gitlab',
+      'Chrome', 'Figma', 'Framer', 'Slack', 'Twitter', 'Facebook', 'Instagram', 'Linkedin',
+      'Youtube', 'Twitch', 'Globe', 'Compass', 'Navigation', 'Anchor', 'Cpu', 'HardDrive',
+      'Smartphone', 'Tablet', 'Laptop', 'Monitor', 'Printer', 'Camera', 'Mic', 'MicOff',
+      'Volume', 'Volume1', 'Volume2', 'VolumeX', 'Play', 'Pause', 'StopCircle', 'SkipBack',
+      'SkipForward', 'FastForward', 'Rewind', 'Film', 'Tv', 'Radio', 'Cast', 'Sun', 'Moon',
+      'CloudRain', 'CloudSnow', 'CloudLightning', 'Wind', 'Thermometer', 'Droplet', 'Umbrella',
+      'Coffee', 'Pizza', 'Beer', 'Cake', 'Gift', 'Smile', 'Frown', 'Meh', 'ThumbsUp', 'ThumbsDown'
+    ];
 
-    const TrendingUp = ({ className, ...props }) => (
-      <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-        <polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline>
-        <polyline points="17 6 23 6 23 12"></polyline>
-      </svg>
-    );
-
-    const TrendingDown = ({ className, ...props }) => (
-      <svg className={className} width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" {...props}>
-        <polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline>
-        <polyline points="17 18 23 18 23 12"></polyline>
-      </svg>
-    );
+    // Create icon components for all common icons
+    const LucideIcons = {};
+    iconNames.forEach(name => {
+      LucideIcons[name] = createLucideIcon(name);
+    });
 
     // Listen for code from parent
     window.addEventListener('message', async (event) => {
@@ -176,20 +186,19 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
 
             // Execute the code to get the component
             // Provide all available components and icons
-            const componentFactory = new Function(
-              'React', 'useState', 'useEffect', 'useMemo', 'useCallback',
-              'Button', 'ChevronLeft', 'ChevronRight', 'ArrowLeft', 'ArrowRight',
-              'CheckCircle', 'XCircle', 'TrendingUp', 'TrendingDown',
-              'Recharts',
-              wrappedCode
-            );
+            // Create function parameters: React hooks, Button, all Lucide icons, and Recharts
+            const functionParams = [
+              'React', 'useState', 'useEffect', 'useMemo', 'useCallback', 'useFile',
+              'Button', ...Object.keys(LucideIcons), 'Recharts'
+            ];
 
-            const Component = componentFactory(
-              React, useState, useEffect, useMemo, useCallback,
-              Button, ChevronLeft, ChevronRight, ArrowLeft, ArrowRight,
-              CheckCircle, XCircle, TrendingUp, TrendingDown,
-              typeof Recharts !== 'undefined' ? Recharts : {}
-            );
+            const functionArgs = [
+              React, useState, useEffect, useMemo, useCallback, useFile,
+              Button, ...Object.values(LucideIcons), typeof Recharts !== 'undefined' ? Recharts : {}
+            ];
+
+            const componentFactory = new Function(...functionParams, wrappedCode);
+            const Component = componentFactory(...functionArgs);
 
             // Render the component
             const root = ReactDOM.createRoot(document.getElementById('root'));
