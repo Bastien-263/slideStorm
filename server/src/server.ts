@@ -78,6 +78,25 @@ const server = new McpServer(
       isError: false,
     };
   },
+)
+.registerWidget(
+  "carousel",
+  {
+    description: "Upload and convert PDF files to PNG images",
+  },
+  {
+    description: "test de carousel",
+    inputSchema: {
+      // No required input - widget starts immediately when triggered
+    },
+  },
+  async () => {
+    // Return empty content to display the upload interface
+    return {
+      content: [],
+      isError: false,
+    };
+  },
 );
 
 export default server;
