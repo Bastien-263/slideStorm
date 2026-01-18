@@ -139,12 +139,8 @@ app.post('/api/dust-stream', cors(), async (req, res) => {
   }
 });
 
-// Handle GET requests on /mcp (MCP client connection check)
-app.get('/mcp', (_req, res) => {
-  res.status(200).send('MCP server ready');
-});
-
-app.use(mcp(server));
+// Mount MCP middleware only on /mcp path
+app.use('/mcp', mcp(server));
 
 const env = process.env.NODE_ENV || "development";
 
