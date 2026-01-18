@@ -27,10 +27,30 @@ function PdfUploader() {
   const [renderError, setRenderError] = React.useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = React.useState(false);
   const fullscreenContainerRef = React.useRef<HTMLDivElement>(null);
+  const [iframeSrcDoc, setIframeSrcDoc] = React.useState<string>('');
 
   const workspaceId = import.meta.env.VITE_WORKSPACE_ID;
   const agentId = import.meta.env.VITE_AGENT_ID;
   const proxyUrl = import.meta.env.VITE_PROXY_URL || 'http://localhost:3000';
+
+  // Try to load frame-runner.html
+  React.useEffect(() => {
+    fetch('/frame-runner.html')
+      .then(res => {
+        console.log('[WIDGET] frame-runner.html fetch response:', res.status);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+        return res.text();
+      })
+      .then(html => {
+        console.log('[WIDGET] frame-runner.html loaded successfully, length:', html.length);
+        setIframeSrcDoc(html);
+      })
+      .catch(err => {
+        console.error('[WIDGET] Failed to load frame-runner.html, will use src attribute:', err);
+      });
+  }, []);
 
   // Handle iframe communication
   React.useEffect(() => {
@@ -434,7 +454,7 @@ function PdfUploader() {
                 }}>
                   <iframe
                     ref={iframeRef}
-                    src="/frame-runner.html"
+                    {...(iframeSrcDoc ? { srcDoc: iframeSrcDoc } : { src: "/frame-runner.html" })}
                     onLoad={() => console.log('[WIDGET] Iframe loaded successfully')}
                     onError={(e) => console.error('[WIDGET] Iframe load error:', e)}
                     style={{
