@@ -188,7 +188,16 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
       allLucideIcons.forEach(iconName => {
         const icon = createLucideIcon(iconName);
         window.__componentCache__[iconName] = icon;
-        window[iconName] = icon;
+
+        // Only assign to window if it's not a reserved property
+        try {
+          if (!(iconName in window) || window[iconName] === undefined) {
+            window[iconName] = icon;
+          }
+        } catch (e) {
+          // Ignore read-only properties like 'Infinity'
+          console.warn(\`[Lucide] Could not assign icon '\${iconName}' to window (reserved property)\`);
+        }
       });
     }
 
