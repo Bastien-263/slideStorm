@@ -1583,6 +1583,4 @@ export const LUCIDE_ICON_NAMES = [
   "ZapOff",
   "ZoomIn",
   "ZoomOut"
-] as const;
-
-export type LucideIconName = typeof LUCIDE_ICON_NAMES[number];
+];
