@@ -552,9 +552,12 @@ function PdfUploader() {
   });
 
   // Listen for update_slides tool calls from ChatGPT
+  // IMPORTANT: In Skybridge, output IS the structuredContent directly
+  // Server returns: { structuredContent: { modifiedTsx, changesSummary } }
+  // Skybridge extracts and maps: output = structuredContent
   const updateSlidesToolInfo = useToolInfo<{
     input: { modifiedTsx: string; changesSummary: string };
-    output: { structuredContent?: { modifiedTsx: string; changesSummary: string } };
+    output: { modifiedTsx: string; changesSummary: string };
   }>();
 
   // Debug: Log widget mount
@@ -574,6 +577,7 @@ function PdfUploader() {
       hasOutput: !!updateSlidesToolInfo.output,
       input: updateSlidesToolInfo.input,
       outputKeys: updateSlidesToolInfo.output ? Object.keys(updateSlidesToolInfo.output) : [],
+      fullOutput: updateSlidesToolInfo.output, // LOG COMPLET
       structuredContent: updateSlidesToolInfo.output?.structuredContent
     });
   }, [updateSlidesToolInfo.status, updateSlidesToolInfo.isSuccess]);
@@ -664,8 +668,12 @@ function PdfUploader() {
     if (updateSlidesToolInfo.isSuccess) {
       console.log("✅ Tool is in success state!");
 
-      const modifiedTsx = updateSlidesToolInfo.output?.structuredContent?.modifiedTsx;
-      const changesSummary = updateSlidesToolInfo.output?.structuredContent?.changesSummary;
+      // CRITICAL: In Skybridge, output IS the structuredContent directly (not output.structuredContent)
+      // Server returns: { structuredContent: { modifiedTsx, changesSummary } }
+      // Skybridge extracts: toolOutput = structuredContent
+      // useToolInfo returns: { output: toolOutput } = { output: { modifiedTsx, changesSummary } }
+      const modifiedTsx = updateSlidesToolInfo.output?.modifiedTsx;
+      const changesSummary = updateSlidesToolInfo.output?.changesSummary;
 
       console.log("   modifiedTsx exists:", !!modifiedTsx);
       console.log("   modifiedTsx length:", modifiedTsx?.length);
@@ -987,7 +995,16 @@ function PdfUploader() {
         {tsxFileContent && (
           <DataLLM
             content=""
-            data-llm={`Current slides TSX code:\n\`\`\`tsx\n${tsxFileContent}\n\`\`\``}
+            data-llm={`Current slides TSX code:
+\`\`\`tsx
+${tsxFileContent}
+\`\`\`
+
+IMPORTANT: To modify these slides, you MUST use the update_slides tool with:
+- modifiedTsx: The complete updated TSX code with your changes
+- changesSummary: A brief description of what you changed
+
+Example: If user asks to "change background to blue", call update_slides with the full TSX code where you've replaced the background gradient colors.`}
           />
         )}
 
