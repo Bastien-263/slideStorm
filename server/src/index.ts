@@ -184,3 +184,6 @@ process.on("SIGINT", async () => {
   console.log("Server shutdown complete");
   process.exit(0);
 });
+
+// Export server type for type-safe client hooks
+export type AppType = typeof server;

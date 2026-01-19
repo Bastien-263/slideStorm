@@ -1,6 +1,7 @@
 import "@/index.css";
 import { useState } from "react";
-import { mountWidget } from "skybridge/web";
+import { mountWidget, useWidgetState } from "skybridge/web";
+import { useCallTool } from "../helpers";
 import * as pdfjsLib from "pdfjs-dist";
 import React from 'react';
 
@@ -545,9 +546,28 @@ function PdfUploader() {
   const [isFullscreen, setIsFullscreen] = React.useState(false);
   const fullscreenContainerRef = React.useRef<HTMLDivElement>(null);
 
+  // Skybridge hooks for widget state and tool calling
+  const [widgetState, setWidgetState] = useWidgetState({
+    tsxContent: null as string | null,
+    slidesGenerated: false
+  });
+  const { callTool, data, isPending, isSuccess } = useCallTool("update_slides");
+  const [modificationRequest, setModificationRequest] = React.useState("");
+
   const workspaceId = import.meta.env.VITE_WORKSPACE_ID;
   const agentId = import.meta.env.VITE_AGENT_ID;
   const proxyUrl = import.meta.env.VITE_PROXY_URL || 'http://localhost:3000';
+
+  // Handler for modifying slides via ChatGPT direct
+  const handleModifySlides = () => {
+    if (!widgetState.tsxContent || !modificationRequest.trim()) return;
+
+    // Call the update_slides tool - ChatGPT will modify the TSX
+    callTool({
+      userRequest: modificationRequest,
+      currentTsxCode: widgetState.tsxContent
+    });
+  };
 
   // Handle iframe communication
   React.useEffect(() => {
@@ -611,6 +631,25 @@ function PdfUploader() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreen]);
+
+  // Apply modifications from update_slides tool
+  React.useEffect(() => {
+    if (isSuccess && data?.structuredContent?.modifiedTsx) {
+      const newTsx = data.structuredContent.modifiedTsx;
+
+      // 1. Update local state (triggers iframe re-render via existing effect)
+      setTsxFileContent(newTsx);
+
+      // 2. Persist in widgetState for next modifications
+      setWidgetState(prev => ({
+        ...prev,
+        tsxContent: newTsx
+      }));
+
+      // 3. Clear modification input
+      setModificationRequest("");
+    }
+  }, [isSuccess, data]);
 
   // Toggle fullscreen presentation mode
   const toggleFullscreen = async () => {
@@ -772,6 +811,13 @@ function PdfUploader() {
 
             setTsxFileContent(fileContent);
             setTsxFileName(file.title || 'generated.tsx');
+
+            // Save TSX in widgetState for future modifications
+            setWidgetState({
+              tsxContent: fileContent,
+              slidesGenerated: true
+            });
+
             break;
           }
         }
@@ -1016,6 +1062,56 @@ function PdfUploader() {
                   whiteSpace: "pre-wrap"
                 }}>
                   {renderError}
+                </div>
+              )}
+
+              {/* Modification UI */}
+              {widgetState.slidesGenerated && (
+                <div style={{
+                  marginTop: "20px",
+                  padding: "15px",
+                  background: "#f5f5f5",
+                  borderRadius: "8px",
+                  border: "1px solid #ddd"
+                }}>
+                  <h3 style={{ margin: "0 0 10px 0", fontSize: "16px" }}>Modifier les slides</h3>
+                  <input
+                    type="text"
+                    value={modificationRequest}
+                    onChange={(e) => setModificationRequest(e.target.value)}
+                    placeholder="Ex: Agrandir les titres, changer couleurs en bleu..."
+                    disabled={isPending}
+                    style={{
+                      width: "100%",
+                      padding: "8px",
+                      marginBottom: "10px",
+                      border: "2px solid #ddd",
+                      borderRadius: "4px",
+                      fontSize: "14px"
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !isPending && modificationRequest.trim()) {
+                        handleModifySlides();
+                      }
+                    }}
+                  />
+                  <button
+                    onClick={handleModifySlides}
+                    disabled={isPending || !modificationRequest.trim()}
+                    style={{
+                      padding: "10px 20px",
+                      background: (isPending || !modificationRequest.trim()) ? "#ccc" : "#2196f3",
+                      color: "white",
+                      border: "none",
+                      borderRadius: "4px",
+                      fontSize: "14px",
+                      fontWeight: "bold",
+                      cursor: (isPending || !modificationRequest.trim()) ? "not-allowed" : "pointer",
+                      width: "100%"
+                    }}
+                  >
+                    {isPending ? "Modification en cours..." : "Modifier"}
+                  </button>
                 </div>
               )}
             </div>

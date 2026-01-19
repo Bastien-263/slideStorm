@@ -209,6 +209,34 @@ const server = new McpServer(
     };
   }
 )
+.registerTool(
+  "update_slides",
+  {
+    description: "Modify the presentation slides TSX code based on user instructions. ChatGPT will read the current code, apply modifications, and return updated TSX.",
+    inputSchema: {
+      userRequest: z.string().describe("User's modification request (e.g., 'make text bigger')"),
+      currentTsxCode: z.string().describe("The current TSX code to modify")
+    },
+    outputSchema: {
+      modifiedTsx: z.string().describe("The updated TSX code with modifications applied"),
+      changesSummary: z.string().describe("Summary of changes made")
+    }
+  },
+  async ({ userRequest, currentTsxCode }) => {
+    // ChatGPT processes the currentTsxCode and provides modified version
+    // This handler just structures the response
+    return {
+      content: [{
+        type: "text",
+        text: `Updated the slides based on: "${userRequest}"`
+      }],
+      structuredContent: {
+        modifiedTsx: currentTsxCode, // ChatGPT modifies this in its response
+        changesSummary: userRequest
+      }
+    };
+  }
+)
 .registerWidget(
   "create-slides",
   {
