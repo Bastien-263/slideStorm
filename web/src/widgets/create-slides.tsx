@@ -463,6 +463,7 @@ function PdfUploader() {
                       <meta charset="UTF-8">
                       <meta name="viewport" content="width=device-width, initial-scale=1.0">
                       <script src="https://cdn.tailwindcss.com"></script>
+                      <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
                       <style>
                         body {
                           margin: 0;
@@ -506,7 +507,7 @@ function PdfUploader() {
                       (iframeWindow as any).React = React;
                       (iframeWindow as any).ReactDOM = ReactDOM;
 
-                      // Liste des propriétés protégées de window qu'on ne doit PAS écraser
+                      // Liste des propriétés protégées
                       const protectedProps = new Set([
                         'Infinity', 'NaN', 'undefined', 'eval', 'isFinite', 'isNaN', 'parseFloat', 'parseInt',
                         'Object', 'Function', 'Boolean', 'Symbol', 'Error', 'Number', 'Date',
@@ -514,15 +515,12 @@ function PdfUploader() {
                         'Math', 'JSON', 'console', 'window', 'document', 'navigator', 'location'
                       ]);
 
-                      // ✅ Inject Lucide icons safely (skip protected properties)
-                      const safeIcons: Record<string, any> = {};
+                      // Inject Lucide icons safely
                       Object.entries(LucideIcons).forEach(([name, Component]) => {
                         if (!protectedProps.has(name)) {
                           try {
                             (iframeWindow as any)[name] = Component;
-                            safeIcons[name] = Component;
                           } catch (e) {
-                            // Skip read-only properties silently
                             console.warn(`Could not assign icon: ${name}`);
                           }
                         }
@@ -583,26 +581,36 @@ function PdfUploader() {
                       code = code.replace(/^import\s+.*?from\s+["'].*?["'];?\s*$/gm, '');
                       code = code.replace(/^export\s+default\s+/gm, '').replace(/^export\s+(const|function|class)\s+/gm, '$1 ');
 
-                      // Find component name
+                      // ✅ Transform with Babel to remove TypeScript types and transform JSX
+                      const Babel = (iframeWindow as any).Babel;
+                      if (!Babel) {
+                        throw new Error('Babel not loaded in iframe');
+                      }
+
+                      const transformedCode = Babel.transform(code, {
+                        presets: ['typescript', 'react'],
+                        filename: 'component.tsx'
+                      }).code;
+
+                      // Find component name from ORIGINAL code (before transformation)
                       const componentMatch = code.match(/(?:const|function)\s+(\w+)\s*=?\s*(?:\(\)|=>|\()/);
                       const componentName = componentMatch ? componentMatch[1] : null;
 
                       if (componentName) {
-                        // ✅ Create component factory with ALL Lucide icons (including protected ones)
-                        // We pass them as function parameters instead of relying on window
+                        // Create component factory with ALL Lucide icons
                         const lucideIconNames = Object.keys(LucideIcons);
                         const lucideIconComponents = Object.values(LucideIcons);
 
                         const componentFactory = new Function(
                           'React', 'useState', 'useEffect', 'useMemo', 'useCallback',
-                          ...lucideIconNames,  // All icon names as parameters
+                          ...lucideIconNames,
                           'Button', 'Card', 'CardHeader', 'CardTitle', 'CardContent',
-                          `${code}\nreturn ${componentName};`
+                          `${transformedCode}\nreturn ${componentName};`
                         );
 
                         const Component = componentFactory(
                           React, React.useState, React.useEffect, React.useMemo, React.useCallback,
-                          ...lucideIconComponents,  // All icon components as arguments
+                          ...lucideIconComponents,
                           (iframeWindow as any).Button,
                           (iframeWindow as any).Card,
                           (iframeWindow as any).CardHeader,
