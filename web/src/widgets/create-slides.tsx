@@ -1,7 +1,6 @@
 import "@/index.css";
 import { useState } from "react";
 import { mountWidget, useWidgetState, DataLLM } from "skybridge/web";
-import { useCallTool } from "../helpers";
 import * as pdfjsLib from "pdfjs-dist";
 import React from 'react';
 
@@ -528,7 +527,12 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
-function PdfUploader() {
+interface PdfUploaderProps {
+  modifiedTsx?: string;
+  changesSummary?: string;
+}
+
+function PdfUploader(props: PdfUploaderProps) {
   const [message, setMessage] = useState("");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pngFiles, setPngFiles] = useState<File[]>([]);
@@ -551,9 +555,6 @@ function PdfUploader() {
     tsxContent: null as string | null,
     slidesGenerated: false
   });
-
-  // Hook to receive tool responses from ChatGPT
-  const { data, isSuccess } = useCallTool("update_slides");
 
   const workspaceId = import.meta.env.VITE_WORKSPACE_ID;
   const agentId = import.meta.env.VITE_AGENT_ID;
@@ -623,20 +624,21 @@ function PdfUploader() {
   }, [isFullscreen]);
 
   // Apply modifications from update_slides tool (called by ChatGPT from chat)
+  // When the tool is called, widget is re-rendered with new props
   React.useEffect(() => {
-    if (isSuccess && data?.structuredContent?.modifiedTsx) {
-      const newTsx = data.structuredContent.modifiedTsx;
+    if (props.modifiedTsx) {
+      console.log("Received modified TSX from tool:", props.changesSummary);
 
       // 1. Update local state (triggers iframe re-render via existing effect)
-      setTsxFileContent(newTsx);
+      setTsxFileContent(props.modifiedTsx);
 
       // 2. Persist in widgetState for next modifications
-      setWidgetState(prev => ({
-        ...prev,
-        tsxContent: newTsx
-      }));
+      setWidgetState({
+        tsxContent: props.modifiedTsx,
+        slidesGenerated: true
+      });
     }
-  }, [isSuccess, data, setWidgetState]);
+  }, [props.modifiedTsx, props.changesSummary, setWidgetState]);
 
   // Toggle fullscreen presentation mode
   const toggleFullscreen = async () => {

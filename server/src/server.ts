@@ -212,27 +212,21 @@ const server = new McpServer(
 .registerTool(
   "update_slides",
   {
-    description: "Update the presentation slides based on user request. You should read the current TSX code from the widget's state, apply the requested modifications, and provide the complete updated TSX code.",
+    description: "Update the presentation slides based on user request. IMPORTANT: After calling this tool, you MUST invoke the create-slides widget with the modifiedTsx and changesSummary parameters to apply the changes. Steps: 1) Read current TSX from widget state, 2) Modify the code, 3) Call this tool with modified code, 4) Invoke create-slides widget with the same parameters.",
     inputSchema: {
       modifiedTsx: z.string().describe("The complete updated TSX code with all requested modifications applied"),
       changesSummary: z.string().describe("Brief summary of changes made (e.g., 'Increased all title font sizes by 50%')")
     },
-    outputSchema: {
-      success: z.boolean().describe("Whether the update was successful"),
-      message: z.string().describe("Confirmation message")
-    }
   },
   async ({ modifiedTsx, changesSummary }) => {
-    // ChatGPT provides the modified TSX in the input
-    // We return it via structuredContent so the widget can apply it
     return {
       content: [{
         type: "text",
-        text: `✅ Slides updated: ${changesSummary}`
+        text: `✅ Slides code prepared: ${changesSummary}\n\nNow invoking widget to apply changes...`
       }],
       structuredContent: {
-        modifiedTsx: modifiedTsx,
-        changesSummary: changesSummary
+        modifiedTsx,
+        changesSummary
       }
     };
   }
@@ -256,11 +250,16 @@ const server = new McpServer(
   },
   {
     description: "Main entry point for SlideStorm - transforms PDFs into interactive presentation slides",
+    inputSchema: {
+      modifiedTsx: z.string().optional().describe("Modified TSX code from update_slides tool"),
+      changesSummary: z.string().optional().describe("Summary of changes made"),
+    },
   },
-  async () => {
+  async ({ modifiedTsx, changesSummary }) => {
     // Widget logic is handled entirely client-side in the React component
+    // Parameters are passed to the React component as props
     return {
-      content: [{ type: "text", text: "SlideStorm widget loaded" }],
+      content: [{ type: "text", text: modifiedTsx ? `Slides updated: ${changesSummary}` : "SlideStorm widget loaded" }],
       isError: false,
     };
   }
