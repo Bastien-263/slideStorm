@@ -5,10 +5,8 @@ import * as pdfjsLib from "pdfjs-dist";
 import React from 'react';
 
 // Configure PDF.js worker for client-side PDF processing
-pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
-  'pdfjs-dist/build/pdf.worker.min.mjs',
-  import.meta.url
-).toString();
+// Use CDN for worker to avoid build path issues in production
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@5.4.530/build/pdf.worker.min.mjs';
 
 // Embed frame-runner.html directly to avoid 404 in production
 const FRAME_RUNNER_HTML = `<!DOCTYPE html>
