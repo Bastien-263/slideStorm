@@ -186,30 +186,24 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
 
       console.log('[Lucide] Pre-caching', allLucideIcons.length, 'icons');
       let successCount = 0;
-      let skipCount = 0;
       let errorCount = 0;
 
       allLucideIcons.forEach(iconName => {
         const icon = createLucideIcon(iconName);
         window.__componentCache__[iconName] = icon;
 
-        // Only assign to window if it's not a reserved property
+        // Force assign to window, even if property exists (overwrite it)
         try {
-          if (!(iconName in window) || window[iconName] === undefined) {
-            window[iconName] = icon;
-            successCount++;
-          } else {
-            console.log('[Lucide] Skipping "' + iconName + '" - already exists on window:', typeof window[iconName]);
-            skipCount++;
-          }
+          window[iconName] = icon;
+          successCount++;
         } catch (e) {
-          // Ignore read-only properties like 'Infinity'
+          // Only skip truly read-only properties like 'Infinity'
           console.warn('[Lucide] Could not assign icon "' + iconName + '" to window (reserved property):', e.message);
           errorCount++;
         }
       });
 
-      console.log('[Lucide] Pre-cache complete: ' + successCount + ' assigned, ' + skipCount + ' skipped, ' + errorCount + ' errors');
+      console.log('[Lucide] Pre-cache complete: ' + successCount + ' assigned, ' + errorCount + ' errors (read-only properties)');
       console.log('[Lucide] Checking Globe in cache:', !!window.__componentCache__.Globe);
       console.log('[Lucide] Checking Globe on window:', typeof window.Globe, window.Globe);
     }

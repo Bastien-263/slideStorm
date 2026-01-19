@@ -144,7 +144,7 @@ export const LUCIDE_ICON_NAMES = [
   // Maps & Location
   'Map', 'MapPin', 'MapPinOff', 'MapPinned', 'Navigation', 'Navigation2', 'NavigationOff',
   'Compass', 'Milestone', 'Radar', 'Locate', 'LocateFixed', 'LocateOff', 'Route', 'RouteOff',
-  'Signpost', 'SignpostBig',
+  'Signpost', 'SignpostBig', 'Globe', 'Globe2',
 
   // Tools & Objects
   'Wrench', 'Hammer', 'Drill', 'Screwdriver', 'Ruler', 'Scissors', 'Paintbrush', 'Paintbrush2',
