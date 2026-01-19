@@ -219,6 +219,7 @@ const server = new McpServer(
           connectDomains: [
             "https://*.ngrok.io",
             "https://*.ngrok-free.app",
+            "https://*.alpic.live",
             "http://localhost:3000"
           ],
         },
