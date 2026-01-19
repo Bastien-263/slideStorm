@@ -232,10 +232,15 @@ const server = new McpServer(
       structuredContent: {
         modifiedTsx,
         changesSummary
+      },
+      _meta: {
+        timestamp: Date.now(),
+        toolName: "update_slides"
       }
     };
 
     console.log("   📤 Returning response with structuredContent");
+    console.log("   📦 Response structure:", JSON.stringify(response, null, 2));
     return response;
   }
 )

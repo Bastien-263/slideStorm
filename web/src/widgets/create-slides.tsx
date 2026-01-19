@@ -578,7 +578,8 @@ function PdfUploader() {
       input: updateSlidesToolInfo.input,
       outputKeys: updateSlidesToolInfo.output ? Object.keys(updateSlidesToolInfo.output) : [],
       fullOutput: updateSlidesToolInfo.output, // LOG COMPLET
-      structuredContent: updateSlidesToolInfo.output?.structuredContent
+      responseMetadata: updateSlidesToolInfo.responseMetadata, // METADATA
+      hasResponseMetadata: !!updateSlidesToolInfo.responseMetadata
     });
   }, [updateSlidesToolInfo.status, updateSlidesToolInfo.isSuccess]);
 
