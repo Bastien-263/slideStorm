@@ -796,8 +796,13 @@ function PdfUploader() {
       setPdfFile(file);
       setPngFiles([file]);
       setConversionComplete(true);
+    } else if (file.type === "application/vnd.ms-powerpoint" || file.type === "application/vnd.openxmlformats-officedocument.presentationml.presentation") {
+      // Handle PPT/PPTX directly
+      setPdfFile(file);
+      setPngFiles([file]);
+      setConversionComplete(true);
     } else {
-      setError("Please select a PDF or PNG file");
+      setError("Please select a PDF, PNG, or PowerPoint file");
       return;
     }
   };
@@ -817,13 +822,21 @@ function PdfUploader() {
       const convId = conversationJson.conversation?.sId;
       if (!convId) throw new Error('Failed to create conversation');
 
-      // Upload PNG files
+      // Upload files (PNG, PPT, or PPTX)
       for (const file of pngFiles) {
+        // Determine content type based on file type
+        let contentType = 'image/png';
+        if (file.type === 'application/vnd.ms-powerpoint') {
+          contentType = 'application/vnd.ms-powerpoint';
+        } else if (file.type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
+          contentType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+        }
+
         // Create file entry
         const fileCreateResponse = await callDustAPI(
           `https://dust.tt/api/v1/w/${workspaceId}/files`,
           {
-            contentType: 'image/png',
+            contentType: contentType,
             fileName: file.name,
             fileSize: file.size,
             useCase: 'conversation',
@@ -1105,11 +1118,11 @@ function PdfUploader() {
 
       <div style={{ marginTop: "20px" }}>
         <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-          PDF or PNG File
+          PDF, PNG, or PowerPoint File
         </label>
         <input
           type="file"
-          accept="application/pdf,image/png"
+          accept="application/pdf,image/png,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
           onChange={handleFileSelect}
           disabled={isConverting}
           style={{
