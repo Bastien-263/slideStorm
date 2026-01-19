@@ -28,7 +28,7 @@ Creating quality presentations is time-consuming and requires design skills. Sli
 SlideStorm is a **ChatGPT App** built with:
 - **Skybridge by Alpic**: Conversational application development framework
 - Skybridge project GitHub: [alpic-ai/skybridge](https://github.com/alpic-ai/skybridge)
-- Architecture based on OpenAI API for natural language processing
+- ChatGPT App architecture powered by a **Dust agent** for intelligent orchestration: [dust.tt](https://dust.tt)
 
 ---
 
