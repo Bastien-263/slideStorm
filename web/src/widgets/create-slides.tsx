@@ -1,6 +1,6 @@
 import "@/index.css";
 import { useState } from "react";
-import { mountWidget, useWidgetState } from "skybridge/web";
+import { mountWidget, useWidgetState, DataLLM } from "skybridge/web";
 import { useCallTool } from "../helpers";
 import * as pdfjsLib from "pdfjs-dist";
 import React from 'react';
@@ -929,6 +929,14 @@ function PdfUploader() {
   if (sendComplete) {
     return (
       <div style={{ padding: "20px", maxWidth: "800px" }}>
+        {/* Expose current TSX to ChatGPT so it can read and modify it */}
+        {tsxFileContent && (
+          <DataLLM
+            content=""
+            data-llm={`Current slides TSX code:\n\`\`\`tsx\n${tsxFileContent}\n\`\`\``}
+          />
+        )}
+
         <div style={{
           padding: "30px",
           textAlign: "center",
