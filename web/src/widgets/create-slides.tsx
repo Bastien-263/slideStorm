@@ -188,16 +188,40 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
       let successCount = 0;
       let errorCount = 0;
 
+      // List of critical window properties that should NEVER be overwritten
+      // These are used by browsers, Babel, React, and other core libraries
+      const protectedProps = [
+        'Infinity', 'NaN', 'undefined', 'eval', 'isFinite', 'isNaN', 'parseFloat', 'parseInt',
+        'decodeURI', 'decodeURIComponent', 'encodeURI', 'encodeURIComponent',
+        'Object', 'Function', 'Boolean', 'Symbol', 'Error', 'Number', 'BigInt', 'Math', 'Date',
+        'String', 'RegExp', 'Array', 'Int8Array', 'Uint8Array', 'Uint8ClampedArray',
+        'Int16Array', 'Uint16Array', 'Int32Array', 'Uint32Array', 'Float32Array', 'Float64Array',
+        'Map', 'Set', 'WeakMap', 'WeakSet', 'ArrayBuffer', 'DataView', 'JSON', 'Promise',
+        'Generator', 'Proxy', 'Reflect',
+        'Intl', 'WebAssembly', 'console', 'performance', 'navigator', 'location', 'history',
+        'document', 'window', 'self', 'top', 'parent', 'frames', 'localStorage', 'sessionStorage',
+        'indexedDB', 'crypto', 'fetch', 'XMLHttpRequest', 'URL', 'URLSearchParams', 'Blob',
+        'File', 'FileReader', 'FormData', 'Headers', 'Request', 'Response', 'Image',
+        'Audio', 'Video', 'Element', 'Node', 'Event', 'MouseEvent', 'KeyboardEvent',
+        'CustomEvent', 'MessageEvent', 'ErrorEvent', 'AnimationEvent', 'TransitionEvent'
+      ];
+
       allLucideIcons.forEach(iconName => {
         const icon = createLucideIcon(iconName);
         window.__componentCache__[iconName] = icon;
+
+        // Skip protected properties that are critical for browser/Babel/React
+        if (protectedProps.includes(iconName)) {
+          console.log('[Lucide] Skipping protected property:', iconName);
+          return;
+        }
 
         // Force assign to window, even if property exists (overwrite it)
         try {
           window[iconName] = icon;
           successCount++;
         } catch (e) {
-          // Only skip truly read-only properties like 'Infinity'
+          // Only skip truly read-only properties
           console.warn('[Lucide] Could not assign icon "' + iconName + '" to window (reserved property):', e.message);
           errorCount++;
         }
