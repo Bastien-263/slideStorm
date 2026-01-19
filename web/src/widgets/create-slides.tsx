@@ -345,7 +345,27 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
             window.createLucideIcon = createLucideIcon;
             window.createGenericComponent = createGenericComponent;
 
-            // Also expose all cached components globally so React can access them
+            // Extract all potential component names from the transformed code
+            // Look for PascalCase identifiers that could be components
+            const componentNamePattern = /\b([A-Z][a-zA-Z0-9]*)\b/g;
+            const potentialComponents = new Set();
+            let match;
+            while ((match = componentNamePattern.exec(babelTransformed)) !== null) {
+              potentialComponents.add(match[1]);
+            }
+
+            // Pre-resolve all potential components and expose them globally
+            // This ensures they're available when the code executes
+            potentialComponents.forEach(name => {
+              if (!window[name]) {
+                const resolved = window.__resolveComponent__(name);
+                if (resolved) {
+                  window[name] = resolved;
+                }
+              }
+            });
+
+            // Also expose all cached components globally
             Object.keys(window.__componentCache__).forEach(key => {
               if (!window[key]) {
                 window[key] = window.__componentCache__[key];
@@ -356,15 +376,15 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
             // This mirrors Dust's approach of checking a centralized component scope
             const componentProxy = new Proxy({}, {
               get: (target, prop) => {
+                // Check window first (where we pre-resolved components)
+                if (prop in window) {
+                  return window[prop];
+                }
+
                 // Use the resolver function for consistent cache behavior
                 const resolved = window.__resolveComponent__(prop);
                 if (resolved) {
                   return resolved;
-                }
-
-                // Check window as fallback for global variables
-                if (prop in window) {
-                  return window[prop];
                 }
 
                 return undefined;
