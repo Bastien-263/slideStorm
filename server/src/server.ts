@@ -212,27 +212,27 @@ const server = new McpServer(
 .registerTool(
   "update_slides",
   {
-    description: "Modify the presentation slides TSX code based on user instructions. ChatGPT will read the current code, apply modifications, and return updated TSX.",
+    description: "Update the presentation slides based on user request. You should read the current TSX code from the widget's state, apply the requested modifications, and provide the complete updated TSX code.",
     inputSchema: {
-      userRequest: z.string().describe("User's modification request (e.g., 'make text bigger')"),
-      currentTsxCode: z.string().describe("The current TSX code to modify")
+      modifiedTsx: z.string().describe("The complete updated TSX code with all requested modifications applied"),
+      changesSummary: z.string().describe("Brief summary of changes made (e.g., 'Increased all title font sizes by 50%')")
     },
     outputSchema: {
-      modifiedTsx: z.string().describe("The updated TSX code with modifications applied"),
-      changesSummary: z.string().describe("Summary of changes made")
+      success: z.boolean().describe("Whether the update was successful"),
+      message: z.string().describe("Confirmation message")
     }
   },
-  async ({ userRequest, currentTsxCode }) => {
-    // ChatGPT processes the currentTsxCode and provides modified version
-    // This handler just structures the response
+  async ({ modifiedTsx, changesSummary }) => {
+    // ChatGPT provides the modified TSX in the input
+    // We return it via structuredContent so the widget can apply it
     return {
       content: [{
         type: "text",
-        text: `Updated the slides based on: "${userRequest}"`
+        text: `✅ Slides updated: ${changesSummary}`
       }],
       structuredContent: {
-        modifiedTsx: currentTsxCode, // ChatGPT modifies this in its response
-        changesSummary: userRequest
+        modifiedTsx: modifiedTsx,
+        changesSummary: changesSummary
       }
     };
   }
