@@ -11,12 +11,15 @@ import * as LucideIcons from 'lucide-react';
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@5.4.530/build/pdf.worker.min.mjs';
 
 function PdfUploader() {
-  const [slideDescription, setSlideDescription] = useState("");
+  const [slideSubjectAndContent, setSlideSubjectAndContent] = useState("");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pngFiles, setPngFiles] = useState<File[]>([]);
   const [isConverting, setIsConverting] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
+  const [conversionComplete, setConversionComplete] = useState(false);
+  const [isSending, setIsSending] = useState(false);
+  const [sendComplete, setSendComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isReceivingResponse, setIsReceivingResponse] = useState(false);
   const [tsxFileContent, setTsxFileContent] = useState<string | null>(null);
   const [tsxFileName, setTsxFileName] = useState<string | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
@@ -110,11 +113,7 @@ function PdfUploader() {
         method: 'POST',
         body,
       });
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Upload error:', response.status, errorText);
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       return response.json();
     }
 
@@ -123,11 +122,7 @@ function PdfUploader() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url, body, method, returnText })
     });
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Proxy error:', { url, method, status: response.status, error: errorText });
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
     return returnText ? response.text() : response.json();
   };
 
@@ -164,6 +159,7 @@ function PdfUploader() {
       }
 
       setPngFiles(pngFilesArray);
+      setConversionComplete(true);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Unknown error');
     } finally {
@@ -245,15 +241,16 @@ function PdfUploader() {
 
             setTsxFileContent(fileContent);
             setTsxFileName(file.title || 'generated.tsx');
-
             break;
           }
         }
       }
+
+      setIsReceivingResponse(false);
+      setSendComplete(true);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Stream error');
-    } finally {
-      setIsGenerating(false);
+      setIsReceivingResponse(false);
     }
   };
 
@@ -266,20 +263,21 @@ function PdfUploader() {
     } else if (file.type === "image/png") {
       setPdfFile(file);
       setPngFiles([file]);
+      setConversionComplete(true);
     } else if (file.type === "application/vnd.ms-powerpoint" || file.type === "application/vnd.openxmlformats-officedocument.presentationml.presentation") {
       setPdfFile(file);
       setPngFiles([file]);
+      setConversionComplete(true);
     } else {
       setError("Please select a PDF, PNG, or PowerPoint file");
       return;
     }
   };
 
-  const handleGenerate = async () => {
-    if (!slideDescription.trim()) return;
+  const handleSend = async () => {
+    if (!slideSubjectAndContent.trim()) return;
 
-    setIsGenerating(true);
-    setError(null);
+    setIsSending(true);
 
     try {
       const conversationUrl = `https://dust.tt/api/v1/w/${workspaceId}/assistant/conversations`;
@@ -321,516 +319,577 @@ function PdfUploader() {
         );
       }
 
-      await streamAgentResponse(convId, slideDescription);
+      setIsReceivingResponse(true);
+      setIsSending(false);
+      await streamAgentResponse(convId, slideSubjectAndContent);
     } catch (error) {
       console.error('Error:', error);
       setError(error instanceof Error ? error.message : 'Unknown error');
     } finally {
-      setIsGenerating(false);
+      setIsSending(false);
     }
   };
 
-  // Slides viewer component
-  const SlidesViewer = () => (
-    <div style={{
-      marginTop: "16px",
-      borderRadius: "12px",
-      overflow: "hidden",
-      border: "1px solid #e5e7eb"
-    }}>
+  // Generating slides state
+  if (isReceivingResponse) {
+    return (
       <div style={{
-        padding: "12px 16px",
-        background: "#f9fafb",
-        borderBottom: "1px solid #e5e7eb",
+        minHeight: "60vh",
         display: "flex",
-        gap: "8px",
         alignItems: "center",
-        justifyContent: "space-between"
+        justifyContent: "center",
+        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif"
       }}>
-        <span style={{ fontSize: "14px", fontWeight: "500", color: "#374151" }}>
-          {tsxFileName}
-        </span>
-        <div style={{ display: "flex", gap: "8px" }}>
+        <div style={{
+          textAlign: "center",
+          maxWidth: "400px",
+          padding: "0 20px"
+        }}>
+          <div style={{
+            width: "64px",
+            height: "64px",
+            borderLeft: "3px solid #10a37f",
+            borderRight: "3px solid #10a37f",
+            borderBottom: "3px solid #10a37f",
+            borderTop: "3px solid transparent",
+            borderRadius: "50%",
+            margin: "0 auto 24px",
+            animation: "spin 1s linear infinite"
+          }}></div>
+          <p style={{
+            fontSize: "16px",
+            color: "#6e6e80",
+            margin: "0",
+            fontWeight: "400"
+          }}>
+            Generating your slides...
+          </p>
+        </div>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  // Success state - slides generated
+  if (sendComplete && tsxFileContent) {
+    return (
+      <div style={{
+        padding: "20px",
+        width: "100%",
+        maxWidth: "1400px",
+        margin: "0 auto",
+        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif"
+      }}>
+        <div style={{
+          marginBottom: "16px",
+          display: "flex",
+          gap: "12px",
+          alignItems: "center",
+          justifyContent: "flex-end"
+        }}>
           <button
             onClick={toggleFullscreen}
             style={{
-              padding: "6px 12px",
-              background: "#10a37f",
-              color: "white",
-              border: "none",
-              borderRadius: "6px",
-              fontSize: "13px",
+              padding: "10px 16px",
+              background: "#fff",
+              color: "#202123",
+              border: "1px solid #d9d9e3",
+              borderRadius: "8px",
+              fontSize: "14px",
               cursor: "pointer",
-              fontWeight: "500"
+              fontWeight: "500",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              transition: "all 0.2s"
             }}
           >
-            {isFullscreen ? '✕ Exit' : '⛶ Present'}
+            <span>{isFullscreen ? '✕' : '⛶'}</span>
+            <span>{isFullscreen ? 'Exit Presentation' : 'Presentation Mode'}</span>
           </button>
           <button
             onClick={() => {
-              navigator.clipboard.writeText(tsxFileContent!);
-              alert('Code copied!');
+              navigator.clipboard.writeText(tsxFileContent);
+              const btn = document.activeElement as HTMLButtonElement;
+              const originalText = btn.innerHTML;
+              btn.innerHTML = '<span>✓</span><span>Copied!</span>';
+              setTimeout(() => {
+                btn.innerHTML = originalText;
+              }, 2000);
             }}
             style={{
-              padding: "6px 12px",
-              background: "#6b7280",
-              color: "white",
+              padding: "10px 16px",
+              background: "#10a37f",
+              color: "#fff",
               border: "none",
-              borderRadius: "6px",
-              fontSize: "13px",
+              borderRadius: "8px",
+              fontSize: "14px",
               cursor: "pointer",
-              fontWeight: "500"
+              fontWeight: "500",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: "8px",
+              transition: "all 0.2s"
             }}
           >
-            Copy
+            <span>📋</span>
+            <span>Copy Code</span>
           </button>
         </div>
-      </div>
 
-      <div
-        ref={fullscreenContainerRef}
-        style={{
-          background: isFullscreen ? "#000" : "#f5f5f5",
-          padding: isFullscreen ? "0" : "20px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: isFullscreen ? "100vw" : "auto",
-          height: isFullscreen ? "100vh" : "auto"
-        }}
-      >
-        <div style={{
-          width: "100%",
-          maxWidth: isFullscreen ? "none" : "100%",
-          aspectRatio: "16 / 9",
-          position: "relative",
-          height: isFullscreen ? "100%" : "auto"
-        }}>
-          <Frame
-            ref={frameRef}
-            style={{
-              position: "absolute",
-              top: 0,
-              left: 0,
+        {/* Frame wrapper with strict 16:9 aspect ratio */}
+        <div
+          ref={fullscreenContainerRef}
+          style={{
+            background: isFullscreen ? "#000" : "#f5f5f5",
+            borderRadius: isFullscreen ? "0" : "12px",
+            padding: isFullscreen ? "0" : "20px",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: isFullscreen ? "100vw" : "auto",
+            height: isFullscreen ? "100vh" : "auto",
+            border: isFullscreen ? "none" : "1px solid #d9d9e3",
+            boxShadow: isFullscreen ? "none" : "0 4px 12px rgba(0,0,0,0.08)"
+          }}
+        >
+            <div style={{
               width: "100%",
-              height: "100%",
-              border: "none",
-              background: "white"
-            }}
-            initialContent={`
-              <!DOCTYPE html>
-              <html lang="en">
-                <head>
-                  <meta charset="UTF-8">
-                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                  <script src="https://cdn.tailwindcss.com"></script>
-                  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-                  <style>
-                    body {
-                      margin: 0;
-                      padding: 0;
-                      overflow: hidden;
-                      background: #000;
-                      display: flex;
-                      align-items: center;
-                      justify-content: center;
-                      min-height: 100vh;
-                    }
-                    #root {
-                      aspect-ratio: 16 / 9;
-                      width: 100%;
-                      max-width: 100vw;
-                      max-height: 100vh;
-                      overflow: hidden;
-                      background: white;
-                      position: relative;
-                    }
-                    #root > * {
-                      width: 100%;
-                      height: 100%;
-                      overflow: hidden;
-                      box-sizing: border-box;
-                    }
-                  </style>
-                </head>
-                <body>
-                  <div id="root"></div>
-                </body>
-              </html>
-            `}
-          >
-            <FrameContextConsumer>
-              {({ document: iframeDoc, window: iframeWindow }: any) => {
-                if (!iframeDoc || !iframeWindow) return null;
+              maxWidth: isFullscreen ? "none" : "1200px",
+              aspectRatio: "16 / 9",
+              position: "relative",
+              height: isFullscreen ? "100%" : "auto"
+            }}>
+              <Frame
+                ref={frameRef}
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  width: "100%",
+                  height: "100%",
+                  border: "none",
+                  borderRadius: isFullscreen ? "0" : "8px",
+                  background: "white"
+                }}
+                initialContent={`
+                  <!DOCTYPE html>
+                  <html lang="en">
+                    <head>
+                      <meta charset="UTF-8">
+                      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                      <script src="https://cdn.tailwindcss.com"></script>
+                      <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+                      <style>
+                        body {
+                          margin: 0;
+                          padding: 0;
+                          overflow: hidden;
+                          background: #000;
+                          display: flex;
+                          align-items: center;
+                          justify-content: center;
+                          min-height: 100vh;
+                        }
+                        #root {
+                          aspect-ratio: 16 / 9;
+                          width: 100%;
+                          max-width: 100vw;
+                          max-height: 100vh;
+                          overflow: hidden;
+                          background: white;
+                          position: relative;
+                        }
+                        #root > * {
+                          width: 100%;
+                          height: 100%;
+                          overflow: hidden;
+                          box-sizing: border-box;
+                        }
+                      </style>
+                    </head>
+                    <body>
+                      <div id="root"></div>
+                    </body>
+                  </html>
+                `}
+              >
+                <FrameContextConsumer>
+                  {({ document: iframeDoc, window: iframeWindow }) => {
+                    if (!iframeDoc || !iframeWindow) return null;
 
-                try {
-                  (iframeWindow as any).React = React;
-                  (iframeWindow as any).ReactDOM = ReactDOM;
+                    try {
+                      // Inject React and ReactDOM into iframe
+                      (iframeWindow as any).React = React;
+                      (iframeWindow as any).ReactDOM = ReactDOM;
 
-                  const protectedProps = new Set([
-                    'Infinity', 'NaN', 'undefined', 'eval', 'isFinite', 'isNaN', 'parseFloat', 'parseInt',
-                    'Object', 'Function', 'Boolean', 'Symbol', 'Error', 'Number', 'Date',
-                    'String', 'RegExp', 'Array', 'Map', 'Set', 'Promise',
-                    'Math', 'JSON', 'console', 'window', 'document', 'navigator', 'location'
-                  ]);
+                      // Liste des propriétés protégées
+                      const protectedProps = new Set([
+                        'Infinity', 'NaN', 'undefined', 'eval', 'isFinite', 'isNaN', 'parseFloat', 'parseInt',
+                        'Object', 'Function', 'Boolean', 'Symbol', 'Error', 'Number', 'Date',
+                        'String', 'RegExp', 'Array', 'Map', 'Set', 'Promise',
+                        'Math', 'JSON', 'console', 'window', 'document', 'navigator', 'location'
+                      ]);
 
-                  Object.entries(LucideIcons).forEach(([name, Component]) => {
-                    if (!protectedProps.has(name)) {
-                      try {
-                        (iframeWindow as any)[name] = Component;
-                      } catch (e) {
-                        console.warn(`Could not assign icon: ${name}`);
+                      // Inject Lucide icons safely
+                      Object.entries(LucideIcons).forEach(([name, Component]) => {
+                        if (!protectedProps.has(name)) {
+                          try {
+                            (iframeWindow as any)[name] = Component;
+                          } catch (e) {
+                            console.warn(`Could not assign icon: ${name}`);
+                          }
+                        }
+                      });
+
+                      // Inject base hooks
+                      (iframeWindow as any).useState = React.useState;
+                      (iframeWindow as any).useEffect = React.useEffect;
+                      (iframeWindow as any).useMemo = React.useMemo;
+                      (iframeWindow as any).useCallback = React.useCallback;
+
+                      // Simple components
+                      (iframeWindow as any).Button = ({ children, variant, size, disabled, className = '', onClick, ...props }: any) => {
+                        const baseClasses = 'inline-flex items-center justify-center transition-all';
+                        const variantClasses = variant === 'outline' ? 'border border-current' : '';
+                        const sizeClasses = size === 'icon' ? 'p-2' : size === 'lg' ? 'px-6 py-3' : 'px-4 py-2';
+                        const disabledClasses = disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer';
+                        return React.createElement('button', {
+                          onClick: !disabled ? onClick : undefined,
+                          disabled,
+                          className: `${baseClasses} ${variantClasses} ${sizeClasses} ${disabledClasses} ${className}`,
+                          ...props
+                        }, children);
+                      };
+
+                      (iframeWindow as any).Card = ({ children, className = '', ...props }: any) => {
+                        return React.createElement('div', {
+                          className: `bg-white rounded-lg shadow-md ${className}`,
+                          ...props
+                        }, children);
+                      };
+
+                      (iframeWindow as any).CardHeader = ({ children, className = '', ...props }: any) => {
+                        return React.createElement('div', {
+                          className: `p-6 ${className}`,
+                          ...props
+                        }, children);
+                      };
+
+                      (iframeWindow as any).CardTitle = ({ children, className = '', ...props }: any) => {
+                        return React.createElement('h3', {
+                          className: `text-2xl font-bold ${className}`,
+                          ...props
+                        }, children);
+                      };
+
+                      (iframeWindow as any).CardContent = ({ children, className = '', ...props }: any) => {
+                        return React.createElement('div', {
+                          className: `p-6 pt-0 ${className}`,
+                          ...props
+                        }, children);
+                      };
+
+                      // Execute TSX code
+                      let code = tsxFileContent;
+
+                      // Remove imports and exports
+                      code = code.replace(/^import\s+.*?from\s+["'].*?["'];?\s*$/gm, '');
+                      code = code.replace(/^export\s+default\s+/gm, '').replace(/^export\s+(const|function|class)\s+/gm, '$1 ');
+
+                      // ✅ Transform with Babel to remove TypeScript types and transform JSX
+                      const Babel = (iframeWindow as any).Babel;
+                      if (!Babel) {
+                        throw new Error('Babel not loaded in iframe');
                       }
-                    }
-                  });
 
-                  (iframeWindow as any).useState = React.useState;
-                  (iframeWindow as any).useEffect = React.useEffect;
-                  (iframeWindow as any).useMemo = React.useMemo;
-                  (iframeWindow as any).useCallback = React.useCallback;
+                      const transformedCode = Babel.transform(code, {
+                        presets: ['typescript', 'react'],
+                        filename: 'component.tsx'
+                      }).code;
 
-                  (iframeWindow as any).Button = ({ children, variant, size, disabled, className = '', onClick, ...props }: any) => {
-                    const baseClasses = 'inline-flex items-center justify-center transition-all';
-                    const variantClasses = variant === 'outline' ? 'border border-current' : '';
-                    const sizeClasses = size === 'icon' ? 'p-2' : size === 'lg' ? 'px-6 py-3' : 'px-4 py-2';
-                    const disabledClasses = disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer';
-                    return React.createElement('button', {
-                      onClick: !disabled ? onClick : undefined,
-                      disabled,
-                      className: `${baseClasses} ${variantClasses} ${sizeClasses} ${disabledClasses} ${className}`,
-                      ...props
-                    }, children);
-                  };
+                      // Find component name from ORIGINAL code (before transformation)
+                      const componentMatch = code.match(/(?:const|function)\s+(\w+)\s*=?\s*(?:\(\)|=>|\()/);
+                      const componentName = componentMatch ? componentMatch[1] : null;
 
-                  (iframeWindow as any).Card = ({ children, className = '', ...props }: any) => {
-                    return React.createElement('div', {
-                      className: `bg-white rounded-lg shadow-md ${className}`,
-                      ...props
-                    }, children);
-                  };
+                      if (componentName) {
+                        // Create component factory with ALL Lucide icons
+                        const lucideIconNames = Object.keys(LucideIcons);
+                        const lucideIconComponents = Object.values(LucideIcons);
 
-                  (iframeWindow as any).CardHeader = ({ children, className = '', ...props }: any) => {
-                    return React.createElement('div', {
-                      className: `p-6 ${className}`,
-                      ...props
-                    }, children);
-                  };
+                        const componentFactory = new Function(
+                          'React', 'useState', 'useEffect', 'useMemo', 'useCallback',
+                          ...lucideIconNames,
+                          'Button', 'Card', 'CardHeader', 'CardTitle', 'CardContent',
+                          `${transformedCode}\nreturn ${componentName};`
+                        );
 
-                  (iframeWindow as any).CardTitle = ({ children, className = '', ...props }: any) => {
-                    return React.createElement('h3', {
-                      className: `text-2xl font-bold ${className}`,
-                      ...props
-                    }, children);
-                  };
+                        const Component = componentFactory(
+                          React, React.useState, React.useEffect, React.useMemo, React.useCallback,
+                          ...lucideIconComponents,
+                          (iframeWindow as any).Button,
+                          (iframeWindow as any).Card,
+                          (iframeWindow as any).CardHeader,
+                          (iframeWindow as any).CardTitle,
+                          (iframeWindow as any).CardContent
+                        );
 
-                  (iframeWindow as any).CardContent = ({ children, className = '', ...props }: any) => {
-                    return React.createElement('div', {
-                      className: `p-6 pt-0 ${className}`,
-                      ...props
-                    }, children);
-                  };
+                        // Render component
+                        const rootElement = iframeDoc.getElementById('root');
+                        if (rootElement) {
+                          const IframeReactDOM = (iframeWindow as any).ReactDOM;
+                          const root = IframeReactDOM.createRoot(rootElement);
+                          root.render(React.createElement(Component));
+                        }
 
-                  let code = tsxFileContent!;
-                  code = code.replace(/^import\s+.*?from\s+["'].*?["'];?\s*$/gm, '');
-                  code = code.replace(/^export\s+default\s+/gm, '').replace(/^export\s+(const|function|class)\s+/gm, '$1 ');
-
-                  const Babel = (iframeWindow as any).Babel;
-                  if (!Babel) {
-                    throw new Error('Babel not loaded in iframe');
-                  }
-
-                  const transformedCode = Babel.transform(code, {
-                    presets: ['typescript', 'react'],
-                    filename: 'component.tsx'
-                  }).code;
-
-                  const componentMatch = code.match(/(?:const|function)\s+(\w+)\s*=?\s*(?:\(\)|=>|\()/);
-                  const componentName = componentMatch ? componentMatch[1] : null;
-
-                  if (componentName) {
-                    const lucideIconNames = Object.keys(LucideIcons);
-                    const lucideIconComponents = Object.values(LucideIcons);
-
-                    const componentFactory = new Function(
-                      'React', 'useState', 'useEffect', 'useMemo', 'useCallback',
-                      ...lucideIconNames,
-                      'Button', 'Card', 'CardHeader', 'CardTitle', 'CardContent',
-                      `${transformedCode}\nreturn ${componentName};`
-                    );
-
-                    const Component = componentFactory(
-                      React, React.useState, React.useEffect, React.useMemo, React.useCallback,
-                      ...lucideIconComponents,
-                      (iframeWindow as any).Button,
-                      (iframeWindow as any).Card,
-                      (iframeWindow as any).CardHeader,
-                      (iframeWindow as any).CardTitle,
-                      (iframeWindow as any).CardContent
-                    );
-
-                    const rootElement = iframeDoc.getElementById('root');
-                    if (rootElement) {
-                      const IframeReactDOM = (iframeWindow as any).ReactDOM;
-                      const root = IframeReactDOM.createRoot(rootElement);
-                      root.render(React.createElement(Component));
+                        setRenderError(null);
+                      }
+                    } catch (error) {
+                      console.error('Render error:', error);
+                      setRenderError(error instanceof Error ? error.message : String(error));
                     }
 
-                    setRenderError(null);
-                  }
-                } catch (error) {
-                  console.error('Render error:', error);
-                  setRenderError(error instanceof Error ? error.message : String(error));
-                }
+                    return null;
+                  }}
+                </FrameContextConsumer>
+              </Frame>
+            </div>
+          </div>
 
-                return null;
-              }}
-            </FrameContextConsumer>
-          </Frame>
-        </div>
+        {/* Error display */}
+        {renderError && (
+          <div style={{
+            padding: "16px",
+            marginTop: "16px",
+            background: "#fff2f0",
+            color: "#d93025",
+            borderRadius: "12px",
+            border: "1px solid #ffd4d1",
+            fontFamily: "monospace",
+            fontSize: "13px",
+            whiteSpace: "pre-wrap"
+          }}>
+            {renderError}
+          </div>
+        )}
       </div>
-
-      {renderError && (
-        <div style={{
-          padding: "10px",
-          background: "#fef2f2",
-          color: "#991b1b",
-          fontSize: "12px",
-          fontFamily: "monospace",
-          whiteSpace: "pre-wrap"
-        }}>
-          {renderError}
-        </div>
-      )}
-    </div>
-  );
-
-  const canGenerate = slideDescription.trim() && !isGenerating;
-
-  // Si les slides sont générées, afficher le viewer
-  if (tsxFileContent) {
-    return <SlidesViewer />;
+    );
   }
 
-  // Interface de génération - Style ChatGPT épuré
+  // Preparing request state
+  if (isSending) {
+    return (
+      <div style={{
+        minHeight: "60vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif"
+      }}>
+        <div style={{
+          textAlign: "center",
+          maxWidth: "400px",
+          padding: "0 20px"
+        }}>
+          <div style={{
+            width: "64px",
+            height: "64px",
+            borderLeft: "3px solid #10a37f",
+            borderRight: "3px solid #10a37f",
+            borderBottom: "3px solid #10a37f",
+            borderTop: "3px solid transparent",
+            borderRadius: "50%",
+            margin: "0 auto 24px",
+            animation: "spin 1s linear infinite"
+          }}></div>
+          <p style={{
+            fontSize: "16px",
+            color: "#6e6e80",
+            margin: "0 0 8px 0",
+            fontWeight: "400"
+          }}>
+            Preparing your request...
+          </p>
+          {pngFiles.length > 0 && (
+            <p style={{ fontSize: "14px", color: "#8e8ea0", margin: 0 }}>
+              Uploading {pngFiles.length} template page{pngFiles.length > 1 ? 's' : ''}
+            </p>
+          )}
+        </div>
+        <style>{`
+          @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  }
+
+  const canSend = slideSubjectAndContent.trim();
+
+  // Main form
   return (
     <div style={{
+      minHeight: "60vh",
       display: "flex",
-      flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      minHeight: "100vh",
       padding: "20px",
-      background: "#ffffff",
-      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif"
     }}>
-      <style>{`
-        @keyframes spin {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 0.4; }
-          50% { opacity: 1; }
-        }
-        .typing-dot {
-          width: 8px;
-          height: 8px;
-          background: #10a37f;
-          border-radius: 50%;
-          display: inline-block;
-          margin: 0 3px;
-          animation: pulse 1.4s infinite;
-        }
-        .typing-dot:nth-child(2) {
-          animation-delay: 0.2s;
-        }
-        .typing-dot:nth-child(3) {
-          animation-delay: 0.4s;
-        }
-      `}</style>
+      <div style={{ width: "100%", maxWidth: "700px" }}>
+        <div style={{ textAlign: "center", marginBottom: "48px" }}>
+          <h1 style={{
+            fontSize: "32px",
+            fontWeight: "600",
+            color: "#202123",
+            margin: "0 0 12px 0"
+          }}>
+            SlideStorm
+          </h1>
+          <p style={{
+            fontSize: "16px",
+            color: "#6e6e80",
+            margin: 0
+          }}>
+            Create beautiful slides with AI
+          </p>
+        </div>
 
-      <div style={{
-        width: "100%",
-        maxWidth: "700px"
-      }}>
-        {/* Header */}
-        {!isGenerating && (
-          <>
-            <div style={{ textAlign: "center", marginBottom: "48px" }}>
-              <h1 style={{
-                fontSize: "48px",
-                fontWeight: "600",
-                margin: "0 0 16px 0",
-                color: "#1f2937"
-              }}>
-                SlideStorm
-              </h1>
-              <p style={{
-                fontSize: "18px",
-                color: "#6b7280",
-                margin: 0
-              }}>
-                Create beautiful slides with AI
-              </p>
-            </div>
+        {error && (
+          <div style={{
+            padding: "16px",
+            marginBottom: "24px",
+            background: "#fff2f0",
+            color: "#d93025",
+            borderRadius: "12px",
+            border: "1px solid #ffd4d1",
+            fontSize: "14px"
+          }}>
+            {error}
+          </div>
+        )}
 
-            {/* Main Input */}
-            <div style={{ marginBottom: "24px" }}>
-              <textarea
-                value={slideDescription}
-                onChange={(e) => setSlideDescription(e.target.value)}
-                placeholder="Describe the slides you want to create..."
-                disabled={isGenerating}
-                style={{
-                  width: "100%",
-                  minHeight: "120px",
-                  padding: "16px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "12px",
-                  fontSize: "16px",
-                  fontFamily: "inherit",
-                  resize: "vertical",
-                  outline: "none",
-                  transition: "border-color 0.2s",
-                  boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)"
-                }}
-                onFocus={(e) => e.target.style.borderColor = "#10a37f"}
-                onBlur={(e) => e.target.style.borderColor = "#d1d5db"}
+        <div style={{
+          background: "#fff",
+          borderRadius: "12px",
+          border: "1px solid #d9d9e3",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+          overflow: "hidden"
+        }}>
+          <div style={{ position: "relative" }}>
+            <textarea
+              value={slideSubjectAndContent}
+              onChange={(e) => setSlideSubjectAndContent(e.target.value)}
+              placeholder="Describe the slides you want to create..."
+              style={{
+                width: "100%",
+                minHeight: "140px",
+                padding: "20px",
+                border: "none",
+                fontSize: "16px",
+                fontFamily: "inherit",
+                resize: "none",
+                outline: "none",
+                color: "#202123",
+                lineHeight: "1.5"
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.metaKey || e.ctrlKey) && canSend) {
+                  handleSend();
+                }
+              }}
+            />
+          </div>
+
+          <div style={{
+            padding: "16px 20px",
+            background: "#f9f9f9",
+            borderTop: "1px solid #ececf1",
+            display: "flex",
+            alignItems: "center",
+            gap: "12px",
+            flexWrap: "wrap"
+          }}>
+            <div style={{ flex: 1, minWidth: "200px" }}>
+              <input
+                type="file"
+                accept="application/pdf,image/png,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                onChange={handleFileSelect}
+                disabled={isConverting}
+                id="file-input"
+                style={{ display: "none" }}
               />
-            </div>
-
-            {/* Template Upload */}
-            <div style={{ marginBottom: "24px" }}>
-              {!pdfFile ? (
-                <label style={{
+              <label
+                htmlFor="file-input"
+                style={{
                   display: "inline-flex",
                   alignItems: "center",
-                  padding: "10px 20px",
-                  background: "#f9fafb",
-                  border: "1px solid #e5e7eb",
+                  gap: "8px",
+                  padding: "8px 14px",
+                  background: "#fff",
+                  border: "1px solid #d9d9e3",
                   borderRadius: "8px",
                   fontSize: "14px",
-                  cursor: "pointer",
-                  color: "#374151",
+                  color: "#202123",
+                  cursor: isConverting ? "not-allowed" : "pointer",
+                  opacity: isConverting ? 0.6 : 1,
                   transition: "all 0.2s"
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "#f3f4f6";
-                  e.currentTarget.style.borderColor = "#d1d5db";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "#f9fafb";
-                  e.currentTarget.style.borderColor = "#e5e7eb";
-                }}
-                >
-                  <span style={{ marginRight: "8px", fontSize: "18px" }}>📎</span>
-                  {isConverting ? 'Converting template...' : 'Add template (optional)'}
-                  <input
-                    type="file"
-                    accept="application/pdf,image/png,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                    onChange={handleFileSelect}
-                    disabled={isConverting}
-                    style={{ display: "none" }}
-                  />
-                </label>
-              ) : (
-                <div style={{
-                  padding: "12px 16px",
-                  background: "#f0fdf4",
-                  border: "1px solid #86efac",
-                  borderRadius: "8px",
-                  fontSize: "14px",
-                  color: "#15803d",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between"
-                }}>
-                  <span>✓ {pdfFile.name} ({pngFiles.length} page{pngFiles.length > 1 ? 's' : ''})</span>
-                  <button
-                    onClick={() => {
-                      setPdfFile(null);
-                      setPngFiles([]);
-                    }}
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      cursor: "pointer",
-                      fontSize: "18px",
-                      padding: "0 4px",
-                      color: "#15803d"
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
+              >
+                <span>📎</span>
+                <span>{pdfFile ? pdfFile.name.substring(0, 20) + (pdfFile.name.length > 20 ? '...' : '') : 'Add template (optional)'}</span>
+              </label>
+              {isConverting && (
+                <p style={{ margin: "8px 0 0 0", fontSize: "13px", color: "#10a37f" }}>
+                  Converting...
+                </p>
+              )}
+              {conversionComplete && pdfFile && !isConverting && (
+                <p style={{ margin: "8px 0 0 0", fontSize: "13px", color: "#10a37f" }}>
+                  ✓ {pngFiles.length} page{pngFiles.length > 1 ? 's' : ''} ready
+                </p>
               )}
             </div>
 
-            {/* Error */}
-            {error && (
-              <div style={{
-                marginBottom: "24px",
-                padding: "12px 16px",
-                background: "#fef2f2",
-                border: "1px solid #fecaca",
+            <button
+              onClick={handleSend}
+              disabled={!canSend}
+              style={{
+                padding: "10px 20px",
+                background: canSend ? "#10a37f" : "#d9d9e3",
+                color: canSend ? "#fff" : "#8e8ea0",
+                border: "none",
                 borderRadius: "8px",
                 fontSize: "14px",
-                color: "#991b1b"
-              }}>
-                {error}
-              </div>
-            )}
-
-            {/* Generate Button */}
-            <button
-              onClick={handleGenerate}
-              disabled={!canGenerate}
-              style={{
-                width: "100%",
-                padding: "14px 24px",
-                background: canGenerate ? "#10a37f" : "#d1d5db",
-                color: "white",
-                border: "none",
-                borderRadius: "12px",
-                fontSize: "16px",
-                fontWeight: "600",
-                cursor: canGenerate ? "pointer" : "not-allowed",
+                fontWeight: "500",
+                cursor: canSend ? "pointer" : "not-allowed",
                 transition: "all 0.2s",
-                boxShadow: canGenerate ? "0 1px 2px rgba(0, 0, 0, 0.05)" : "none"
-              }}
-              onMouseEnter={(e) => {
-                if (canGenerate) e.currentTarget.style.background = "#0d8c6c";
-              }}
-              onMouseLeave={(e) => {
-                if (canGenerate) e.currentTarget.style.background = "#10a37f";
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px"
               }}
             >
-              Generate Slides
+              <span>Generate</span>
+              <span>→</span>
             </button>
-          </>
-        )}
-
-        {/* Generating State */}
-        {isGenerating && (
-          <div style={{
-            textAlign: "center",
-            padding: "60px 20px"
-          }}>
-            <div style={{ marginBottom: "24px" }}>
-              <span className="typing-dot"></span>
-              <span className="typing-dot"></span>
-              <span className="typing-dot"></span>
-            </div>
-            <p style={{
-              fontSize: "18px",
-              fontWeight: "500",
-              color: "#374151",
-              margin: 0
-            }}>
-              Generating your slides...
-            </p>
           </div>
-        )}
+        </div>
+
+        <p style={{
+          marginTop: "16px",
+          fontSize: "13px",
+          color: "#8e8ea0",
+          textAlign: "center"
+        }}>
+          Press {navigator.platform.includes('Mac') ? '⌘' : 'Ctrl'} + Enter to generate
+        </p>
       </div>
     </div>
   );
