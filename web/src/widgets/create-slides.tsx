@@ -3,6 +3,7 @@ import { useState } from "react";
 import { mountWidget } from "skybridge/web";
 import * as pdfjsLib from "pdfjs-dist";
 import React from 'react';
+import { LUCIDE_ICON_NAMES } from './lucide-icons';
 
 // Configure PDF.js worker for client-side PDF processing
 // Use CDN for worker to avoid build path issues in production
@@ -171,15 +172,24 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
     };
 
     // Initialize component cache ONCE at module load
-    // Only cache base React components, NOT icons - icons are resolved dynamically
     if (!window.__componentCache__) {
       window.__componentCache__ = {
-        // Pre-register base components only
+        // Pre-register base components
         React, useState, useEffect, useMemo, useCallback,
         Button, Card, CardHeader, CardTitle, CardContent,
         useFile,
         Recharts: typeof Recharts !== 'undefined' ? Recharts : {}
       };
+
+      // Pre-cache ALL Lucide icons (500+ icons) to avoid runtime resolution issues
+      const allLucideIcons = ${JSON.stringify(LUCIDE_ICON_NAMES)};
+
+      console.log('[Lucide] Pre-caching', allLucideIcons.length, 'icons');
+      allLucideIcons.forEach(iconName => {
+        const icon = createLucideIcon(iconName);
+        window.__componentCache__[iconName] = icon;
+        window[iconName] = icon;
+      });
     }
 
     // Universal component resolver - similar to Dust's scope injection
