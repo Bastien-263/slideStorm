@@ -197,7 +197,8 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
       'Volume', 'Volume1', 'Volume2', 'VolumeX', 'Play', 'Pause', 'StopCircle', 'SkipBack',
       'SkipForward', 'FastForward', 'Rewind', 'Film', 'Tv', 'Radio', 'Cast', 'Sun', 'Moon',
       'CloudRain', 'CloudSnow', 'CloudLightning', 'Wind', 'Thermometer', 'Droplet', 'Umbrella',
-      'Coffee', 'Pizza', 'Beer', 'Cake', 'Gift', 'Smile', 'Frown', 'Meh', 'ThumbsUp', 'ThumbsDown'
+      'Coffee', 'Pizza', 'Beer', 'Cake', 'Gift', 'Smile', 'Frown', 'Meh', 'ThumbsUp', 'ThumbsDown',
+      'Shield', 'ShieldCheck', 'ShieldAlert', 'ShieldOff', 'ShieldX'
     ];
 
     // Create icon components for all common icons
@@ -346,6 +347,31 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
               }
             });
 
+            // Make all components available globally to ensure they work during re-renders
+            // Assign all proxy properties to window so they're accessible everywhere
+            Object.keys(componentProxy).forEach(key => {
+              if (!(key in window)) {
+                window[key] = componentProxy[key];
+              }
+            });
+
+            // Also wrap the Proxy's get handler so new components are auto-created on window
+            const proxyHandler = {
+              get: (target, prop) => {
+                if (prop in target) return target[prop];
+                if (prop in window) return window[prop];
+                if (typeof prop === 'string' && prop[0] === prop[0].toUpperCase()) {
+                  // Try creating as Lucide icon first (if it looks like an icon name)
+                  const comp = createLucideIcon(prop);
+                  window[prop] = comp; // Store for future use
+                  return comp;
+                }
+                return undefined;
+              }
+            };
+
+            const globalProxy = new Proxy(componentProxy, proxyHandler);
+
             // Use 'with' statement via function wrapper to inject proxy
             const functionParams = ['componentProxy'];
             const wrappedWithProxy = \`
@@ -356,7 +382,7 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
             \`;
 
             const componentFactory = new Function(...functionParams, wrappedWithProxy);
-            const Component = componentFactory(componentProxy);
+            const Component = componentFactory(globalProxy);
 
             // Render the component
             const root = ReactDOM.createRoot(document.getElementById('root'));
@@ -440,7 +466,21 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
             };
 
             setTimeout(() => {
+              // Add listeners to both document and window to ensure we catch keyboard events
               document.addEventListener('keydown', window.keyboardNavigationHandler);
+              window.addEventListener('keydown', window.keyboardNavigationHandler);
+
+              // Also make the body focusable and focus it
+              document.body.tabIndex = -1;
+              document.body.style.outline = 'none';
+              document.body.focus();
+
+              // Auto-focus the root div to capture keyboard events
+              const rootElement = document.getElementById('root');
+              if (rootElement) {
+                rootElement.tabIndex = -1; // Make it focusable
+                rootElement.style.outline = 'none'; // Remove focus outline
+              }
             }, 100);
 
             // Send success message
