@@ -506,9 +506,26 @@ function PdfUploader() {
                       (iframeWindow as any).React = React;
                       (iframeWindow as any).ReactDOM = ReactDOM;
 
-                      // Inject ALL Lucide icons
+                      // Liste des propriétés protégées de window qu'on ne doit PAS écraser
+                      const protectedProps = new Set([
+                        'Infinity', 'NaN', 'undefined', 'eval', 'isFinite', 'isNaN', 'parseFloat', 'parseInt',
+                        'Object', 'Function', 'Boolean', 'Symbol', 'Error', 'Number', 'Date',
+                        'String', 'RegExp', 'Array', 'Map', 'Set', 'Promise',
+                        'Math', 'JSON', 'console', 'window', 'document', 'navigator', 'location'
+                      ]);
+
+                      // ✅ Inject Lucide icons safely (skip protected properties)
+                      const safeIcons: Record<string, any> = {};
                       Object.entries(LucideIcons).forEach(([name, Component]) => {
-                        (iframeWindow as any)[name] = Component;
+                        if (!protectedProps.has(name)) {
+                          try {
+                            (iframeWindow as any)[name] = Component;
+                            safeIcons[name] = Component;
+                          } catch (e) {
+                            // Skip read-only properties silently
+                            console.warn(`Could not assign icon: ${name}`);
+                          }
+                        }
                       });
 
                       // Inject base hooks
@@ -571,17 +588,21 @@ function PdfUploader() {
                       const componentName = componentMatch ? componentMatch[1] : null;
 
                       if (componentName) {
-                        // Create component factory with all globals available
+                        // ✅ Create component factory with ALL Lucide icons (including protected ones)
+                        // We pass them as function parameters instead of relying on window
+                        const lucideIconNames = Object.keys(LucideIcons);
+                        const lucideIconComponents = Object.values(LucideIcons);
+
                         const componentFactory = new Function(
                           'React', 'useState', 'useEffect', 'useMemo', 'useCallback',
-                          ...Object.keys(LucideIcons),
+                          ...lucideIconNames,  // All icon names as parameters
                           'Button', 'Card', 'CardHeader', 'CardTitle', 'CardContent',
                           `${code}\nreturn ${componentName};`
                         );
 
                         const Component = componentFactory(
                           React, React.useState, React.useEffect, React.useMemo, React.useCallback,
-                          ...Object.values(LucideIcons),
+                          ...lucideIconComponents,  // All icon components as arguments
                           (iframeWindow as any).Button,
                           (iframeWindow as any).Card,
                           (iframeWindow as any).CardHeader,
@@ -592,8 +613,8 @@ function PdfUploader() {
                         // Render component
                         const rootElement = iframeDoc.getElementById('root');
                         if (rootElement) {
-                          const ReactDOM = (iframeWindow as any).ReactDOM;
-                          const root = ReactDOM.createRoot(rootElement);
+                          const IframeReactDOM = (iframeWindow as any).ReactDOM;
+                          const root = IframeReactDOM.createRoot(rootElement);
                           root.render(React.createElement(Component));
                         }
 
