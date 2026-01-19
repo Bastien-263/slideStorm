@@ -28,6 +28,7 @@
     "pdfjs-dist": "^5.4.530",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
+    "react-frame-component": "^5.2.7",
     "recharts": "^3.6.0",
     "skybridge": ">=0.22.0 <1.0.0",
     "undici": "^7.18.2",
