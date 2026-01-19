@@ -170,40 +170,53 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
       };
     };
 
-    // Export all common lucide icons as React components dynamically
-    const iconNames = [
-      'ChevronLeft', 'ChevronRight', 'ArrowLeft', 'ArrowRight', 'CheckCircle', 'XCircle',
-      'TrendingUp', 'TrendingDown', 'Heart', 'Star', 'Users', 'Calendar', 'Clock', 'Mail',
-      'Phone', 'MapPin', 'AlertCircle', 'Info', 'Zap', 'Award', 'Target', 'Lightbulb',
-      'Briefcase', 'FileText', 'Sparkles', 'Home', 'Search', 'Settings', 'Menu', 'X',
-      'Plus', 'Minus', 'Edit', 'Trash', 'Save', 'Download', 'Upload', 'Share', 'Copy',
-      'Check', 'AlertTriangle', 'HelpCircle', 'Eye', 'EyeOff', 'Lock', 'Unlock', 'Key',
-      'User', 'UserPlus', 'UserMinus', 'Bell', 'BellOff', 'MessageCircle', 'MessageSquare',
-      'Send', 'Inbox', 'Archive', 'Folder', 'File', 'Image', 'Video', 'Music', 'Code',
-      'Terminal', 'Database', 'Server', 'Cloud', 'CloudOff', 'Wifi', 'WifiOff', 'Bluetooth',
-      'Battery', 'BatteryCharging', 'Power', 'Loader', 'RefreshCw', 'RotateCw', 'RotateCcw',
-      'ChevronUp', 'ChevronDown', 'ChevronsUp', 'ChevronsDown', 'ChevronsLeft', 'ChevronsRight',
-      'ArrowUp', 'ArrowDown', 'ArrowUpRight', 'ArrowDownRight', 'ArrowUpLeft', 'ArrowDownLeft',
-      'ExternalLink', 'Link', 'LinkOff', 'Maximize', 'Minimize', 'ZoomIn', 'ZoomOut',
-      'Filter', 'Sliders', 'Grid', 'List', 'LayoutGrid', 'LayoutList', 'Columns', 'Rows',
-      'Circle', 'Square', 'Triangle', 'Hexagon', 'Flag', 'Bookmark', 'Tag', 'Package',
-      'ShoppingCart', 'ShoppingBag', 'CreditCard', 'DollarSign', 'TrendingDown', 'BarChart',
-      'PieChart', 'Activity', 'GitBranch', 'GitCommit', 'GitMerge', 'Github', 'Gitlab',
-      'Chrome', 'Figma', 'Framer', 'Slack', 'Twitter', 'Facebook', 'Instagram', 'Linkedin',
-      'Youtube', 'Twitch', 'Globe', 'Compass', 'Navigation', 'Anchor', 'Cpu', 'HardDrive',
-      'Smartphone', 'Tablet', 'Laptop', 'Monitor', 'Printer', 'Camera', 'Mic', 'MicOff',
-      'Volume', 'Volume1', 'Volume2', 'VolumeX', 'Play', 'Pause', 'StopCircle', 'SkipBack',
-      'SkipForward', 'FastForward', 'Rewind', 'Film', 'Tv', 'Radio', 'Cast', 'Sun', 'Moon',
-      'CloudRain', 'CloudSnow', 'CloudLightning', 'Wind', 'Thermometer', 'Droplet', 'Umbrella',
-      'Coffee', 'Pizza', 'Beer', 'Cake', 'Gift', 'Smile', 'Frown', 'Meh', 'ThumbsUp', 'ThumbsDown',
-      'Shield', 'ShieldCheck', 'ShieldAlert', 'ShieldOff', 'ShieldX'
-    ];
+    // Initialize component cache ONCE at module load
+    if (!window.__componentCache__) {
+      window.__componentCache__ = {
+        // Pre-register base components
+        React, useState, useEffect, useMemo, useCallback,
+        Button, Card, CardHeader, CardTitle, CardContent,
+        useFile,
+        Recharts: typeof Recharts !== 'undefined' ? Recharts : {}
+      };
 
-    // Create icon components for all common icons
-    const LucideIcons = {};
-    iconNames.forEach(name => {
-      LucideIcons[name] = createLucideIcon(name);
-    });
+      // Pre-cache common Lucide icons that Dust frequently uses
+      const commonIcons = [
+        'ChevronLeft', 'ChevronRight', 'ArrowLeft', 'ArrowRight',
+        'CheckCircle', 'XCircle', 'TrendingUp', 'TrendingDown',
+        'Rocket', 'Shield', 'Plus', 'Minus', 'X', 'Check',
+        'Home', 'Settings', 'User', 'Menu', 'Search', 'Download',
+        'Upload', 'Edit', 'Trash', 'Eye', 'EyeOff', 'Star'
+      ];
+
+      commonIcons.forEach(iconName => {
+        const icon = createLucideIcon(iconName);
+        window.__componentCache__[iconName] = icon;
+        window[iconName] = icon;
+      });
+    }
+
+    // Universal component resolver - similar to Dust's scope injection
+    // This allows ANY component to be resolved dynamically
+    const resolveComponent = (componentName) => {
+      // Check cache first (fast path)
+      if (window.__componentCache__[componentName]) {
+        return window.__componentCache__[componentName];
+      }
+
+      // Create and cache new icon component (Lucide)
+      if (typeof componentName === 'string' && componentName[0] === componentName[0].toUpperCase()) {
+        const component = createLucideIcon(componentName);
+        window.__componentCache__[componentName] = component;
+        window[componentName] = component; // Also set globally for React access
+        return component;
+      }
+
+      return undefined;
+    };
+
+    // Expose resolver globally for React components to access
+    window.__resolveComponent__ = resolveComponent;
 
     // Listen for messages from parent
     window.addEventListener('message', async (event) => {
@@ -304,8 +317,9 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
             .replace(/^export\\s+(const|function|class)\\s+/gm, '$1 ');
 
           // Use Babel to transform JSX to JavaScript
+          // Use typescript preset to strip type annotations, then react preset for JSX
           const babelTransformed = Babel.transform(transformedCode, {
-            presets: ['react'],
+            presets: ['typescript', 'react'],
             filename: 'component.tsx'
           }).code;
 
@@ -321,54 +335,49 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
               return \${componentName};
             \`;
 
-            // Execute the code to get the component
-            // Create a proxy that automatically provides missing components
-            const componentProxy = new Proxy({
-              React, useState, useEffect, useMemo, useCallback, useFile,
-              Button, Card, CardHeader, CardTitle, CardContent,
-              ...LucideIcons,
-              Recharts: typeof Recharts !== 'undefined' ? Recharts : {}
-            }, {
+            // Make all base components available globally
+            window.React = React;
+            window.useState = useState;
+            window.useEffect = useEffect;
+            window.useMemo = useMemo;
+            window.useCallback = useCallback;
+            window.useFile = useFile;
+            window.Button = Button;
+            window.Card = Card;
+            window.CardHeader = CardHeader;
+            window.CardTitle = CardTitle;
+            window.CardContent = CardContent;
+            window.Recharts = typeof Recharts !== 'undefined' ? Recharts : {};
+            window.createLucideIcon = createLucideIcon;
+            window.createGenericComponent = createGenericComponent;
+
+            // Also expose all cached components globally so React can access them
+            Object.keys(window.__componentCache__).forEach(key => {
+              if (!window[key]) {
+                window[key] = window.__componentCache__[key];
+              }
+            });
+
+            // Create a Proxy that intercepts property access using the unified cache
+            // This mirrors Dust's approach of checking a centralized component scope
+            const componentProxy = new Proxy({}, {
               get: (target, prop) => {
-                // If the property exists, return it
-                if (prop in target) {
-                  return target[prop];
+                // Use the resolver function for consistent cache behavior
+                const resolved = window.__resolveComponent__(prop);
+                if (resolved) {
+                  return resolved;
                 }
 
-                // If it's a string property (component name), create a generic component
-                if (typeof prop === 'string' && prop[0] === prop[0].toUpperCase()) {
-                  return createGenericComponent(prop);
+                // Check window as fallback for global variables
+                if (prop in window) {
+                  return window[prop];
                 }
 
-                // Otherwise return undefined
                 return undefined;
               }
             });
 
-            // Make all components available globally to ensure they work during re-renders
-            // Assign all proxy properties to window so they're accessible everywhere
-            Object.keys(componentProxy).forEach(key => {
-              if (!(key in window)) {
-                window[key] = componentProxy[key];
-              }
-            });
-
-            // Also wrap the Proxy's get handler so new components are auto-created on window
-            const proxyHandler = {
-              get: (target, prop) => {
-                if (prop in target) return target[prop];
-                if (prop in window) return window[prop];
-                if (typeof prop === 'string' && prop[0] === prop[0].toUpperCase()) {
-                  // Try creating as Lucide icon first (if it looks like an icon name)
-                  const comp = createLucideIcon(prop);
-                  window[prop] = comp; // Store for future use
-                  return comp;
-                }
-                return undefined;
-              }
-            };
-
-            const globalProxy = new Proxy(componentProxy, proxyHandler);
+            const globalProxy = componentProxy;
 
             // Use 'with' statement via function wrapper to inject proxy
             const functionParams = ['componentProxy'];
