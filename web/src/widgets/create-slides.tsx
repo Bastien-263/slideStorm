@@ -1,6 +1,6 @@
 import "@/index.css";
 import { useState } from "react";
-import { mountWidget, useWidgetState, DataLLM } from "skybridge/web";
+import { mountWidget, useWidgetState, DataLLM, useToolInfo } from "skybridge/web";
 import * as pdfjsLib from "pdfjs-dist";
 import React from 'react';
 
@@ -527,12 +527,7 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
 </body>
 </html>`;
 
-interface PdfUploaderProps {
-  modifiedTsx?: string;
-  changesSummary?: string;
-}
-
-function PdfUploader(props: PdfUploaderProps) {
+function PdfUploader() {
   const [message, setMessage] = useState("");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pngFiles, setPngFiles] = useState<File[]>([]);
@@ -555,6 +550,12 @@ function PdfUploader(props: PdfUploaderProps) {
     tsxContent: null as string | null,
     slidesGenerated: false
   });
+
+  // Listen for update_slides tool calls from ChatGPT
+  const updateSlidesToolInfo = useToolInfo<{
+    input: { modifiedTsx: string; changesSummary: string };
+    output: { structuredContent?: { modifiedTsx: string; changesSummary: string } };
+  }>();
 
   const workspaceId = import.meta.env.VITE_WORKSPACE_ID;
   const agentId = import.meta.env.VITE_AGENT_ID;
@@ -624,21 +625,26 @@ function PdfUploader(props: PdfUploaderProps) {
   }, [isFullscreen]);
 
   // Apply modifications from update_slides tool (called by ChatGPT from chat)
-  // When the tool is called, widget is re-rendered with new props
+  // Listen to tool calls via useToolInfo hook - this is the correct Skybridge pattern
   React.useEffect(() => {
-    if (props.modifiedTsx) {
-      console.log("Received modified TSX from tool:", props.changesSummary);
+    if (updateSlidesToolInfo.isSuccess) {
+      const modifiedTsx = updateSlidesToolInfo.output?.structuredContent?.modifiedTsx;
+      const changesSummary = updateSlidesToolInfo.output?.structuredContent?.changesSummary;
 
-      // 1. Update local state (triggers iframe re-render via existing effect)
-      setTsxFileContent(props.modifiedTsx);
+      if (modifiedTsx) {
+        console.log("✅ Tool called! Applying changes:", changesSummary);
 
-      // 2. Persist in widgetState for next modifications
-      setWidgetState({
-        tsxContent: props.modifiedTsx,
-        slidesGenerated: true
-      });
+        // 1. Update local state (triggers iframe re-render via existing effect)
+        setTsxFileContent(modifiedTsx);
+
+        // 2. Persist in widgetState for next modifications
+        setWidgetState({
+          tsxContent: modifiedTsx,
+          slidesGenerated: true
+        });
+      }
     }
-  }, [props.modifiedTsx, props.changesSummary, setWidgetState]);
+  }, [updateSlidesToolInfo.isSuccess, updateSlidesToolInfo.output, setWidgetState]);
 
   // Toggle fullscreen presentation mode
   const toggleFullscreen = async () => {
