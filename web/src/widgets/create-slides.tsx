@@ -304,11 +304,18 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
         // Right arrow, Page Down, or Space -> Next slide
         if (key === 'ArrowRight' || key === 'PageDown' || key === ' ') {
           const allButtons = document.querySelectorAll('button, [role="button"], div[onclick], span[onclick]');
+          console.log('[Navigation] Looking for Next button among', allButtons.length, 'buttons');
+          let found = false;
           for (const btn of allButtons) {
             if (matchesButton(btn, ['next', 'suiv', 'suivant', 'chevron-right', 'arrow-right', '>'])) {
+              console.log('[Navigation] Found Next button, clicking it');
               triggerClick(btn);
+              found = true;
               break;
             }
+          }
+          if (!found) {
+            console.warn('[Navigation] No Next button found');
           }
         }
 
