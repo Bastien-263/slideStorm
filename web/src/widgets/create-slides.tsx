@@ -121,7 +121,11 @@ function PdfUploader() {
         method: 'POST',
         body,
       });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Upload error:', response.status, errorText);
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
       return response.json();
     }
 
@@ -130,7 +134,11 @@ function PdfUploader() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url, body, method, returnText })
     });
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Proxy error:', { url, method, status: response.status, error: errorText });
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
     return returnText ? response.text() : response.json();
   };
 
