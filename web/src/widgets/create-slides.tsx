@@ -171,29 +171,15 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
     };
 
     // Initialize component cache ONCE at module load
+    // Only cache base React components, NOT icons - icons are resolved dynamically
     if (!window.__componentCache__) {
       window.__componentCache__ = {
-        // Pre-register base components
+        // Pre-register base components only
         React, useState, useEffect, useMemo, useCallback,
         Button, Card, CardHeader, CardTitle, CardContent,
         useFile,
         Recharts: typeof Recharts !== 'undefined' ? Recharts : {}
       };
-
-      // Pre-cache common Lucide icons that Dust frequently uses
-      const commonIcons = [
-        'ChevronLeft', 'ChevronRight', 'ArrowLeft', 'ArrowRight',
-        'CheckCircle', 'XCircle', 'TrendingUp', 'TrendingDown',
-        'Rocket', 'Shield', 'Plus', 'Minus', 'X', 'Check',
-        'Home', 'Settings', 'User', 'Menu', 'Search', 'Download',
-        'Upload', 'Edit', 'Trash', 'Eye', 'EyeOff', 'Star'
-      ];
-
-      commonIcons.forEach(iconName => {
-        const icon = createLucideIcon(iconName);
-        window.__componentCache__[iconName] = icon;
-        window[iconName] = icon;
-      });
     }
 
     // Universal component resolver - similar to Dust's scope injection
@@ -204,8 +190,16 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
         return window.__componentCache__[componentName];
       }
 
+      // Check if it's already on window
+      if (window[componentName]) {
+        window.__componentCache__[componentName] = window[componentName];
+        return window[componentName];
+      }
+
       // Create and cache new icon component (Lucide)
+      // Assume any PascalCase name is a Lucide icon
       if (typeof componentName === 'string' && componentName[0] === componentName[0].toUpperCase()) {
+        console.log(\`[ComponentResolver] Auto-creating Lucide icon: \${componentName}\`);
         const component = createLucideIcon(componentName);
         window.__componentCache__[componentName] = component;
         window[componentName] = component; // Also set globally for React access
