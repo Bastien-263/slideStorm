@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import { mountWidget } from "skybridge/web";
 import * as pdfjsLib from "pdfjs-dist";
 import React from 'react';
+import ReactDOM from 'react-dom/client';
 import Frame, { FrameContextConsumer } from 'react-frame-component';
 import * as LucideIcons from 'lucide-react';
 
@@ -503,7 +504,7 @@ function PdfUploader() {
                     try {
                       // Inject React and ReactDOM into iframe
                       (iframeWindow as any).React = React;
-                      (iframeWindow as any).ReactDOM = require('react-dom/client');
+                      (iframeWindow as any).ReactDOM = ReactDOM;
 
                       // Inject ALL Lucide icons
                       Object.entries(LucideIcons).forEach(([name, Component]) => {
