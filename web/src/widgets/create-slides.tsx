@@ -385,9 +385,16 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
             });
 
             // Also expose all cached components globally
+            // Force assign all cached icons, even if the property exists on window
             Object.keys(window.__componentCache__).forEach(key => {
-              if (!window[key]) {
-                window[key] = window.__componentCache__[key];
+              // Skip base React components that should not be overwritten
+              const skipKeys = ['React', 'useState', 'useEffect', 'useMemo', 'useCallback', 'useFile', 'Button', 'Card', 'CardHeader', 'CardTitle', 'CardContent', 'Recharts'];
+              if (!skipKeys.includes(key)) {
+                try {
+                  window[key] = window.__componentCache__[key];
+                } catch (e) {
+                  // Ignore read-only properties
+                }
               }
             });
 
