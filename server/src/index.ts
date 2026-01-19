@@ -10,12 +10,6 @@ import server from "./server.js";
 
 const app = express() as Express & { vite: ViteDevServer };
 
-// Debug middleware to log all requests
-app.use((req, _res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path}`);
-  next();
-});
-
 // Configure body parsers first
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
@@ -24,12 +18,7 @@ import multer from 'multer';
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 // Dust API proxy for multipart file uploads
-console.log('[STARTUP] Registering POST /widgets/api/dust-upload');
 app.post('/widgets/api/dust-upload', cors(), upload.single('file'), async (req, res) => {
-  console.log('[ROUTE HIT] POST /widgets/api/dust-upload');
-  console.log('[DEBUG] Request body keys:', Object.keys(req.body));
-  console.log('[DEBUG] Has file:', !!req.file);
-  console.log('[DEBUG] URL:', req.body.url);
   try {
     const { url } = req.body;
     if (!url || !req.file) return res.status(400).json({ error: 'Missing url or file' });
@@ -55,15 +44,12 @@ app.post('/widgets/api/dust-upload', cors(), upload.single('file'), async (req, 
 
     res.json(JSON.parse(responseText));
   } catch (error) {
-    console.error('[ERROR] /widgets/api/dust-upload error:', error);
     res.status(500).json({ error: String(error) });
   }
 });
 
 // Dust API proxy for JSON and text requests
-console.log('[STARTUP] Registering POST /widgets/api/dust-proxy');
 app.post('/widgets/api/dust-proxy', cors(), async (req, res) => {
-  console.log('[ROUTE HIT] POST /widgets/api/dust-proxy');
   try {
     const { url, body, method = 'POST', returnText = false } = req.body;
 
@@ -94,17 +80,13 @@ app.post('/widgets/api/dust-proxy', cors(), async (req, res) => {
       res.json(data);
     }
   } catch (error) {
-    console.error('Dust API error:', error);
     res.status(500).json({ error: String(error) });
   }
 });
 
 // Dust API streaming endpoint for SSE events
-console.log('[STARTUP] Registering OPTIONS /widgets/api/dust-stream');
 app.options('/widgets/api/dust-stream', cors());
-console.log('[STARTUP] Registering POST /widgets/api/dust-stream');
 app.post('/widgets/api/dust-stream', cors(), async (req, res) => {
-  console.log('[ROUTE HIT] POST /widgets/api/dust-stream');
   try {
     const { url } = req.body;
     if (!url) return res.status(400).json({ error: 'Missing url' });
@@ -139,7 +121,7 @@ app.post('/widgets/api/dust-stream', cors(), async (req, res) => {
           res.write(decoder.decode(value, { stream: true }));
         }
       } catch (streamError) {
-        console.error('Stream error:', streamError);
+        // Stream interrupted
       } finally {
         res.end();
       }
@@ -147,7 +129,6 @@ app.post('/widgets/api/dust-stream', cors(), async (req, res) => {
       res.end();
     }
   } catch (error) {
-    console.error('Stream error:', error);
     if (!res.headersSent) {
       res.status(500).json({ error: String(error) });
     } else {
@@ -157,7 +138,6 @@ app.post('/widgets/api/dust-stream', cors(), async (req, res) => {
 });
 
 // Mount MCP middleware at root (it handles /mcp internally)
-console.log('[STARTUP] Mounting MCP middleware');
 app.use(mcp(server));
 
 const env = process.env.NODE_ENV || "development";
@@ -172,14 +152,11 @@ if (env === "production") {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
 
-  // Serve public files (frame-runner.html, etc.)
+  // Serve public files
   const publicPath = path.join(__dirname, "public");
-  console.log('[STARTUP] Serving static public files from:', publicPath);
-
   app.use(cors());
   app.use(express.static(publicPath, {
     setHeaders: (res, filePath) => {
-      console.log('Serving public file:', filePath);
       if (filePath.endsWith('.html')) {
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
       }
@@ -189,7 +166,6 @@ if (env === "production") {
   app.use("/assets", cors());
   app.use("/assets", express.static(path.join(__dirname, "assets"), {
     setHeaders: (res, filePath) => {
-      console.log('Serving asset file:', filePath);
       if (filePath.endsWith('.mjs') || filePath.endsWith('.js')) {
         res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
       }

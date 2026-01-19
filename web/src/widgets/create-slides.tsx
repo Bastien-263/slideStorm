@@ -91,6 +91,63 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
       );
     };
 
+    // Simple Card component
+    const Card = ({ children, className = '', ...props }) => {
+      return (
+        <div className={\`bg-white rounded-lg shadow-md \${className}\`} {...props}>
+          {children}
+        </div>
+      );
+    };
+
+    const CardHeader = ({ children, className = '', ...props }) => {
+      return (
+        <div className={\`p-6 \${className}\`} {...props}>
+          {children}
+        </div>
+      );
+    };
+
+    const CardTitle = ({ children, className = '', ...props }) => {
+      return (
+        <h3 className={\`text-2xl font-bold \${className}\`} {...props}>
+          {children}
+        </h3>
+      );
+    };
+
+    const CardContent = ({ children, className = '', ...props }) => {
+      return (
+        <div className={\`p-6 pt-0 \${className}\`} {...props}>
+          {children}
+        </div>
+      );
+    };
+
+    // Generic component factory - creates any missing component on the fly
+    const createGenericComponent = (componentName) => {
+      return ({ children, className = '', ...props }) => {
+        // Detect common component patterns and provide appropriate defaults
+        const lowerName = componentName.toLowerCase();
+
+        if (lowerName.includes('header') || lowerName.includes('title')) {
+          return <div className={\`font-bold text-lg \${className}\`} {...props}>{children}</div>;
+        }
+        if (lowerName.includes('content') || lowerName.includes('body')) {
+          return <div className={\`p-4 \${className}\`} {...props}>{children}</div>;
+        }
+        if (lowerName.includes('footer')) {
+          return <div className={\`mt-auto \${className}\`} {...props}>{children}</div>;
+        }
+        if (lowerName.includes('description')) {
+          return <p className={\`text-sm text-gray-600 \${className}\`} {...props}>{children}</p>;
+        }
+
+        // Default: just a div with the class name
+        return <div className={className} {...props}>{children}</div>;
+      };
+    };
+
     // Create a generic icon component factory that uses lucide dynamically
     const createLucideIcon = (iconName) => {
       return ({ className, size = 24, ...props }) => {
@@ -149,8 +206,89 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
       LucideIcons[name] = createLucideIcon(name);
     });
 
-    // Listen for code from parent
+    // Listen for messages from parent
     window.addEventListener('message', async (event) => {
+      // Handle keyboard events forwarded from parent
+      if (event.data.type === 'KEYBOARD_EVENT') {
+        const key = event.data.key;
+
+        // Helper to check if a button matches navigation criteria
+        const matchesButton = (btn, keywords) => {
+          const text = btn.textContent?.toLowerCase() || '';
+          const ariaLabel = btn.getAttribute('aria-label')?.toLowerCase() || '';
+          const innerHTML = btn.innerHTML.toLowerCase();
+
+          return keywords.some(keyword =>
+            text.includes(keyword) ||
+            ariaLabel.includes(keyword) ||
+            innerHTML.includes(keyword)
+          );
+        };
+
+        // Helper to trigger all types of click events
+        const triggerClick = (element) => {
+          // Try multiple methods to ensure the click is registered
+          element.click();
+          element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+          element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
+          element.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
+        };
+
+        // Left arrow or Page Up -> Previous slide
+        if (key === 'ArrowLeft' || key === 'PageUp') {
+          const allButtons = document.querySelectorAll('button, [role="button"], div[onclick], span[onclick]');
+          for (const btn of allButtons) {
+            if (matchesButton(btn, ['prev', 'précéd', 'previous', 'chevron-left', 'arrow-left', '<'])) {
+              triggerClick(btn);
+              break;
+            }
+          }
+        }
+
+        // Right arrow, Page Down, or Space -> Next slide
+        if (key === 'ArrowRight' || key === 'PageDown' || key === ' ') {
+          const allButtons = document.querySelectorAll('button, [role="button"], div[onclick], span[onclick]');
+          for (const btn of allButtons) {
+            if (matchesButton(btn, ['next', 'suiv', 'suivant', 'chevron-right', 'arrow-right', '>'])) {
+              triggerClick(btn);
+              break;
+            }
+          }
+        }
+
+        // Home -> First slide
+        if (key === 'Home') {
+          const allButtons = document.querySelectorAll('button, [role="button"], div[onclick], span[onclick]');
+          for (let i = 0; i < 100; i++) {
+            let found = false;
+            for (const btn of allButtons) {
+              if (matchesButton(btn, ['prev', 'précéd', 'previous', 'chevron-left', 'arrow-left'])) {
+                triggerClick(btn);
+                found = true;
+                break;
+              }
+            }
+            if (!found) break;
+          }
+        }
+
+        // End -> Last slide
+        if (key === 'End') {
+          const allButtons = document.querySelectorAll('button, [role="button"], div[onclick], span[onclick]');
+          for (let i = 0; i < 100; i++) {
+            let found = false;
+            for (const btn of allButtons) {
+              if (matchesButton(btn, ['next', 'suiv', 'suivant', 'chevron-right', 'arrow-right'])) {
+                triggerClick(btn);
+                found = true;
+                break;
+              }
+            }
+            if (!found) break;
+          }
+        }
+      }
+
       if (event.data.type === 'EXECUTE_CODE') {
         const code = event.data.code;
 
@@ -185,24 +323,125 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
             \`;
 
             // Execute the code to get the component
-            // Provide all available components and icons
-            // Create function parameters: React hooks, Button, all Lucide icons, and Recharts
-            const functionParams = [
-              'React', 'useState', 'useEffect', 'useMemo', 'useCallback', 'useFile',
-              'Button', ...Object.keys(LucideIcons), 'Recharts'
-            ];
-
-            const functionArgs = [
+            // Create a proxy that automatically provides missing components
+            const componentProxy = new Proxy({
               React, useState, useEffect, useMemo, useCallback, useFile,
-              Button, ...Object.values(LucideIcons), typeof Recharts !== 'undefined' ? Recharts : {}
-            ];
+              Button, Card, CardHeader, CardTitle, CardContent,
+              ...LucideIcons,
+              Recharts: typeof Recharts !== 'undefined' ? Recharts : {}
+            }, {
+              get: (target, prop) => {
+                // If the property exists, return it
+                if (prop in target) {
+                  return target[prop];
+                }
 
-            const componentFactory = new Function(...functionParams, wrappedCode);
-            const Component = componentFactory(...functionArgs);
+                // If it's a string property (component name), create a generic component
+                if (typeof prop === 'string' && prop[0] === prop[0].toUpperCase()) {
+                  return createGenericComponent(prop);
+                }
+
+                // Otherwise return undefined
+                return undefined;
+              }
+            });
+
+            // Use 'with' statement via function wrapper to inject proxy
+            const functionParams = ['componentProxy'];
+            const wrappedWithProxy = \`
+              with (componentProxy) {
+                \${babelTransformed}
+                return \${componentName};
+              }
+            \`;
+
+            const componentFactory = new Function(...functionParams, wrappedWithProxy);
+            const Component = componentFactory(componentProxy);
 
             // Render the component
             const root = ReactDOM.createRoot(document.getElementById('root'));
             root.render(React.createElement(Component));
+
+            // Add keyboard navigation after component is rendered
+            // Remove any existing keyboard listener to avoid duplicates
+            if (window.keyboardNavigationHandler) {
+              document.removeEventListener('keydown', window.keyboardNavigationHandler);
+            }
+
+            window.keyboardNavigationHandler = (e) => {
+              if (['ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', ' ', 'Home', 'End'].includes(e.key)) {
+                e.preventDefault();
+
+                const allButtons = document.querySelectorAll('button, [role="button"], [onclick]');
+                let targetButton = null;
+
+                if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+                  // Find previous button
+                  for (const btn of allButtons) {
+                    const text = (btn.textContent || '').toLowerCase();
+                    const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
+                    const className = (btn.className || '').toLowerCase();
+
+                    if (text.includes('prev') || text.includes('précéd') || text.includes('back') ||
+                        ariaLabel.includes('prev') || ariaLabel.includes('back') ||
+                        className.includes('prev') || className.includes('back')) {
+                      targetButton = btn;
+                      break;
+                    }
+                  }
+
+                  // Fallback: look for left arrow SVG or icons
+                  if (!targetButton) {
+                    for (const btn of allButtons) {
+                      const svgPath = btn.querySelector('svg path, svg polyline');
+                      if (svgPath) {
+                        const pathData = (svgPath.getAttribute('d') || svgPath.getAttribute('points') || '').toLowerCase();
+                        if (pathData.includes('15 18 9 12') || pathData.includes('12 19 5 12')) {
+                          targetButton = btn;
+                          break;
+                        }
+                      }
+                    }
+                  }
+                } else if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
+                  // Find next button
+                  for (const btn of allButtons) {
+                    const text = (btn.textContent || '').toLowerCase();
+                    const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
+                    const className = (btn.className || '').toLowerCase();
+
+                    if (text.includes('next') || text.includes('suiv') || text.includes('forward') ||
+                        ariaLabel.includes('next') || ariaLabel.includes('forward') ||
+                        className.includes('next') || className.includes('forward')) {
+                      targetButton = btn;
+                      break;
+                    }
+                  }
+
+                  // Fallback: look for right arrow SVG or icons
+                  if (!targetButton) {
+                    for (const btn of allButtons) {
+                      const svgPath = btn.querySelector('svg path, svg polyline');
+                      if (svgPath) {
+                        const pathData = (svgPath.getAttribute('d') || svgPath.getAttribute('points') || '').toLowerCase();
+                        if (pathData.includes('9 18 15 12') || pathData.includes('12 5 19 12')) {
+                          targetButton = btn;
+                          break;
+                        }
+                      }
+                    }
+                  }
+                }
+
+                if (targetButton) {
+                  targetButton.click();
+                }
+              }
+            };
+
+            setTimeout(() => {
+              document.addEventListener('keydown', window.keyboardNavigationHandler);
+            }, 100);
 
             // Send success message
             window.parent.postMessage({ type: 'RENDER_SUCCESS' }, '*');
@@ -266,15 +505,11 @@ function PdfUploader() {
   // Handle iframe communication
   React.useEffect(() => {
     const handleMessage = (event: MessageEvent) => {
-      console.log('[WIDGET] Received message from iframe:', event.data);
       if (event.data.type === 'IFRAME_READY') {
-        console.log('[WIDGET] Iframe is ready!');
         setIframeReady(true);
       } else if (event.data.type === 'RENDER_ERROR') {
-        console.error('[WIDGET] Render error from iframe:', event.data.error);
         setRenderError(event.data.error);
       } else if (event.data.type === 'RENDER_SUCCESS') {
-        console.log('[WIDGET] Render success!');
         setRenderError(null);
       }
     };
@@ -285,9 +520,7 @@ function PdfUploader() {
 
   // Send code to iframe when ready
   React.useEffect(() => {
-    console.log('[WIDGET] Checking if should send code:', { iframeReady, hasIframeRef: !!iframeRef.current, hasTsxContent: !!tsxFileContent });
     if (iframeReady && iframeRef.current && tsxFileContent) {
-      console.log('[WIDGET] Sending TSX code to iframe, length:', tsxFileContent.length);
       iframeRef.current.contentWindow?.postMessage({
         type: 'EXECUTE_CODE',
         code: tsxFileContent
@@ -305,6 +538,33 @@ function PdfUploader() {
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
   }, []);
 
+  // Forward keyboard events to iframe for navigation (only in fullscreen)
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle keyboard navigation when in fullscreen mode
+      if (!isFullscreen) return;
+
+      // Don't interfere if user is typing in an input/textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+
+      // Only forward navigation keys
+      if (['ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(e.key)) {
+        e.preventDefault();
+        // Forward key event to iframe
+        if (iframeRef.current?.contentWindow) {
+          iframeRef.current.contentWindow.postMessage({
+            type: 'KEYBOARD_EVENT',
+            key: e.key
+          }, '*');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
+
   // Toggle fullscreen presentation mode
   const toggleFullscreen = async () => {
     if (!fullscreenContainerRef.current) return;
@@ -316,7 +576,7 @@ function PdfUploader() {
         await document.exitFullscreen();
       }
     } catch (err) {
-      console.error('Error toggling fullscreen:', err);
+      // Fullscreen failed silently
     }
   };
 
@@ -377,7 +637,6 @@ function PdfUploader() {
       setPngFiles(pngFilesArray);
       setConversionComplete(true);
     } catch (error) {
-      console.error('Conversion error:', error);
       setError(error instanceof Error ? error.message : 'Unknown error');
     } finally {
       setIsConverting(false);
@@ -460,8 +719,9 @@ function PdfUploader() {
             // Download TSX file content
             const fileUrl = `https://dust.tt/api/v1/w/${workspaceId}/files/${fileId}`;
             const fileContent = await callDustAPI(fileUrl, null, 'GET', true);
-            console.log('Conversation ID:', convId);
-            console.log('TSX file retrieved:', file.title, `(${fileContent.length} chars)`);
+
+            // KEEP THIS LOG: Link to the Dust conversation for easy access
+            console.log(`✅ Slides created successfully! View conversation: https://dust.tt/w/${workspaceId}/assistant/${convId}`);
 
             setTsxFileContent(fileContent);
             setTsxFileName(file.title || 'generated.tsx');
@@ -473,7 +733,6 @@ function PdfUploader() {
       setIsReceivingResponse(false);
       setSendComplete(true);
     } catch (error) {
-      console.error('Error:', error);
       setError(error instanceof Error ? error.message : 'Stream error');
       setIsReceivingResponse(false);
     }
@@ -666,8 +925,6 @@ function PdfUploader() {
                   <iframe
                     ref={iframeRef}
                     srcDoc={FRAME_RUNNER_HTML}
-                    onLoad={() => console.log('[WIDGET] Iframe loaded successfully')}
-                    onError={(e) => console.error('[WIDGET] Iframe load error:', e)}
                     style={{
                       position: "absolute",
                       top: 0,
