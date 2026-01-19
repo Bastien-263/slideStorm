@@ -246,14 +246,29 @@ function PdfUploader() {
             setTsxFileContent(fileContent);
             setTsxFileName(file.title || 'generated.tsx');
 
+            // Update the last assistant message with slides
+            setMessages(prev => {
+              const updated = [...prev];
+              const lastMsg = updated[updated.length - 1];
+              if (lastMsg && lastMsg.role === 'assistant') {
+                lastMsg.content = 'Your slides are ready!';
+                lastMsg.isGenerating = false;
+                lastMsg.hasSlides = true;
+              }
+              return updated;
+            });
             break;
           }
         }
       }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Stream error');
-    } finally {
-      setIsGenerating(false);
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `Error: ${error instanceof Error ? error.message : 'Stream error'}`,
+        timestamp: new Date()
+      }]);
     }
   };
 
@@ -321,12 +336,28 @@ function PdfUploader() {
         );
       }
 
-      await streamAgentResponse(convId, slideDescription);
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: 'Generating your slides...',
+        timestamp: new Date(),
+        isGenerating: true
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+
+      setIsSending(false);
+      await streamAgentResponse(convId, messageContent);
     } catch (error) {
       console.error('Error:', error);
       setError(error instanceof Error ? error.message : 'Unknown error');
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 2).toString(),
+        role: 'assistant',
+        content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: new Date()
+      }]);
     } finally {
-      setIsGenerating(false);
+      setIsSending(false);
     }
   };
 
@@ -604,22 +635,14 @@ function PdfUploader() {
     </div>
   );
 
-  const canGenerate = slideDescription.trim() && !isGenerating;
+  const canSend = inputValue.trim() && !isSending;
 
-  // Si les slides sont générées, afficher le viewer
-  if (tsxFileContent) {
-    return <SlidesViewer />;
-  }
-
-  // Interface de génération - Style ChatGPT épuré
+  // ChatGPT-like interface
   return (
     <div style={{
       display: "flex",
       flexDirection: "column",
-      alignItems: "center",
-      justifyContent: "center",
-      minHeight: "100vh",
-      padding: "20px",
+      height: "100vh",
       background: "#ffffff",
       fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
     }}>
@@ -635,10 +658,10 @@ function PdfUploader() {
         .typing-dot {
           width: 8px;
           height: 8px;
-          background: #10a37f;
+          background: #666;
           border-radius: 50%;
           display: inline-block;
-          margin: 0 3px;
+          margin: 0 2px;
           animation: pulse 1.4s infinite;
         }
         .typing-dot:nth-child(2) {
@@ -649,188 +672,221 @@ function PdfUploader() {
         }
       `}</style>
 
+      {/* Messages Area */}
       <div style={{
+        flex: 1,
+        overflowY: "auto",
+        padding: "20px",
+        maxWidth: "800px",
         width: "100%",
-        maxWidth: "700px"
+        margin: "0 auto"
       }}>
-        {/* Header */}
-        {!isGenerating && (
-          <>
-            <div style={{ textAlign: "center", marginBottom: "48px" }}>
-              <h1 style={{
-                fontSize: "48px",
-                fontWeight: "600",
-                margin: "0 0 16px 0",
-                color: "#1f2937"
-              }}>
-                SlideStorm
-              </h1>
-              <p style={{
-                fontSize: "18px",
-                color: "#6b7280",
-                margin: 0
-              }}>
-                Create beautiful slides with AI
-              </p>
-            </div>
-
-            {/* Main Input */}
-            <div style={{ marginBottom: "24px" }}>
-              <textarea
-                value={slideDescription}
-                onChange={(e) => setSlideDescription(e.target.value)}
-                placeholder="Describe the slides you want to create..."
-                disabled={isGenerating}
-                style={{
-                  width: "100%",
-                  minHeight: "120px",
-                  padding: "16px",
-                  border: "1px solid #d1d5db",
-                  borderRadius: "12px",
-                  fontSize: "16px",
-                  fontFamily: "inherit",
-                  resize: "vertical",
-                  outline: "none",
-                  transition: "border-color 0.2s",
-                  boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)"
-                }}
-                onFocus={(e) => e.target.style.borderColor = "#10a37f"}
-                onBlur={(e) => e.target.style.borderColor = "#d1d5db"}
-              />
-            </div>
-
-            {/* Template Upload */}
-            <div style={{ marginBottom: "24px" }}>
-              {!pdfFile ? (
-                <label style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  padding: "10px 20px",
-                  background: "#f9fafb",
-                  border: "1px solid #e5e7eb",
-                  borderRadius: "8px",
-                  fontSize: "14px",
-                  cursor: "pointer",
-                  color: "#374151",
-                  transition: "all 0.2s"
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "#f3f4f6";
-                  e.currentTarget.style.borderColor = "#d1d5db";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "#f9fafb";
-                  e.currentTarget.style.borderColor = "#e5e7eb";
-                }}
-                >
-                  <span style={{ marginRight: "8px", fontSize: "18px" }}>📎</span>
-                  {isConverting ? 'Converting template...' : 'Add template (optional)'}
-                  <input
-                    type="file"
-                    accept="application/pdf,image/png,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
-                    onChange={handleFileSelect}
-                    disabled={isConverting}
-                    style={{ display: "none" }}
-                  />
-                </label>
-              ) : (
-                <div style={{
-                  padding: "12px 16px",
-                  background: "#f0fdf4",
-                  border: "1px solid #86efac",
-                  borderRadius: "8px",
-                  fontSize: "14px",
-                  color: "#15803d",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between"
-                }}>
-                  <span>✓ {pdfFile.name} ({pngFiles.length} page{pngFiles.length > 1 ? 's' : ''})</span>
-                  <button
-                    onClick={() => {
-                      setPdfFile(null);
-                      setPngFiles([]);
-                    }}
-                    style={{
-                      background: "transparent",
-                      border: "none",
-                      cursor: "pointer",
-                      fontSize: "18px",
-                      padding: "0 4px",
-                      color: "#15803d"
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
+        {messages.length === 0 ? (
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+            textAlign: "center",
+            color: "#666"
+          }}>
+            <h1 style={{ fontSize: "32px", fontWeight: "600", marginBottom: "16px" }}>
+              SlideStorm
+            </h1>
+            <p style={{ fontSize: "16px", marginBottom: "32px" }}>
+              Create beautiful slides with AI
+            </p>
+            <div style={{ fontSize: "14px", color: "#999" }}>
+              <p>Start by describing what slides you'd like to create</p>
+              {pdfFile && (
+                <p style={{ marginTop: "8px", color: "#4caf50" }}>
+                  ✓ Template: {pdfFile.name}
+                </p>
               )}
             </div>
+          </div>
+        ) : (
+          <>
+            {messages.map((msg) => (
+              <div
+                key={msg.id}
+                style={{
+                  display: "flex",
+                  marginBottom: "24px",
+                  justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start'
+                }}
+              >
+                <div style={{
+                  maxWidth: "70%",
+                  background: msg.role === 'user' ? '#f3f4f6' : 'transparent',
+                  padding: msg.role === 'user' ? "12px 16px" : "12px 0",
+                  borderRadius: "18px",
+                  fontSize: "15px",
+                  lineHeight: "1.5",
+                  color: "#1f2937"
+                }}>
+                  {msg.role === 'assistant' && (
+                    <div style={{
+                      fontWeight: "600",
+                      marginBottom: "8px",
+                      fontSize: "14px",
+                      color: "#10a37f"
+                    }}>
+                      SlideStorm
+                    </div>
+                  )}
+                  {msg.isGenerating ? (
+                    <div>
+                      <span className="typing-dot"></span>
+                      <span className="typing-dot"></span>
+                      <span className="typing-dot"></span>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ whiteSpace: "pre-wrap" }}>{msg.content}</div>
+                      {msg.hasSlides && tsxFileContent && <SlidesViewer />}
+                    </>
+                  )}
+                </div>
+              </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </>
+        )}
+      </div>
 
-            {/* Error */}
-            {error && (
-              <div style={{
-                marginBottom: "24px",
-                padding: "12px 16px",
-                background: "#fef2f2",
-                border: "1px solid #fecaca",
+      {/* Input Area */}
+      <div style={{
+        borderTop: "1px solid #e5e7eb",
+        padding: "20px",
+        background: "#ffffff"
+      }}>
+        <div style={{
+          maxWidth: "800px",
+          margin: "0 auto"
+        }}>
+          {/* Template Upload */}
+          {!pdfFile && (
+            <div style={{ marginBottom: "12px" }}>
+              <label style={{
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "8px 16px",
+                background: "#f3f4f6",
                 borderRadius: "8px",
                 fontSize: "14px",
-                color: "#991b1b"
+                cursor: "pointer",
+                color: "#374151"
               }}>
-                {error}
-              </div>
-            )}
+                <span style={{ marginRight: "8px" }}>📎</span>
+                {isConverting ? 'Converting...' : 'Add template (optional)'}
+                <input
+                  type="file"
+                  accept="application/pdf,image/png,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                  onChange={handleFileSelect}
+                  disabled={isConverting}
+                  style={{ display: "none" }}
+                />
+              </label>
+            </div>
+          )}
 
-            {/* Generate Button */}
-            <button
-              onClick={handleGenerate}
-              disabled={!canGenerate}
+          {pdfFile && (
+            <div style={{
+              marginBottom: "12px",
+              padding: "8px 12px",
+              background: "#f0fdf4",
+              borderRadius: "8px",
+              fontSize: "13px",
+              color: "#15803d",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between"
+            }}>
+              <span>✓ {pdfFile.name} ({pngFiles.length} page{pngFiles.length > 1 ? 's' : ''})</span>
+              <button
+                onClick={() => {
+                  setPdfFile(null);
+                  setPngFiles([]);
+                }}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "16px",
+                  padding: "0 4px"
+                }}
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          {error && (
+            <div style={{
+              marginBottom: "12px",
+              padding: "12px",
+              background: "#fef2f2",
+              borderRadius: "8px",
+              fontSize: "13px",
+              color: "#991b1b"
+            }}>
+              {error}
+            </div>
+          )}
+
+          {/* Input Box */}
+          <div style={{
+            display: "flex",
+            gap: "8px",
+            alignItems: "flex-end"
+          }}>
+            <textarea
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && canSend) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder="Describe the slides you want to create..."
               style={{
-                width: "100%",
-                padding: "14px 24px",
-                background: canGenerate ? "#10a37f" : "#d1d5db",
+                flex: 1,
+                padding: "12px 16px",
+                border: "1px solid #d1d5db",
+                borderRadius: "12px",
+                fontSize: "15px",
+                fontFamily: "inherit",
+                resize: "none",
+                minHeight: "52px",
+                maxHeight: "200px",
+                outline: "none",
+                boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)"
+              }}
+              rows={1}
+            />
+            <button
+              onClick={handleSend}
+              disabled={!canSend}
+              style={{
+                padding: "12px 20px",
+                background: canSend ? "#10a37f" : "#d1d5db",
                 color: "white",
                 border: "none",
                 borderRadius: "12px",
-                fontSize: "16px",
-                fontWeight: "600",
-                cursor: canGenerate ? "pointer" : "not-allowed",
-                transition: "all 0.2s",
-                boxShadow: canGenerate ? "0 1px 2px rgba(0, 0, 0, 0.05)" : "none"
-              }}
-              onMouseEnter={(e) => {
-                if (canGenerate) e.currentTarget.style.background = "#0d8c6c";
-              }}
-              onMouseLeave={(e) => {
-                if (canGenerate) e.currentTarget.style.background = "#10a37f";
+                fontSize: "15px",
+                fontWeight: "500",
+                cursor: canSend ? "pointer" : "not-allowed",
+                transition: "background 0.2s",
+                minWidth: "80px"
               }}
             >
-              Generate Slides
+              {isSending ? '...' : 'Send'}
             </button>
-          </>
-        )}
-
-        {/* Generating State */}
-        {isGenerating && (
-          <div style={{
-            textAlign: "center",
-            padding: "60px 20px"
-          }}>
-            <div style={{ marginBottom: "24px" }}>
-              <span className="typing-dot"></span>
-              <span className="typing-dot"></span>
-              <span className="typing-dot"></span>
-            </div>
-            <p style={{
-              fontSize: "18px",
-              fontWeight: "500",
-              color: "#374151",
-              margin: 0
-            }}>
-              Generating your slides...
-            </p>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
