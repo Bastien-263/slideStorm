@@ -219,9 +219,14 @@ const server = new McpServer(
     },
   },
   async ({ modifiedTsx, changesSummary }) => {
-    return {
+    console.log("🔧 update_slides tool called");
+    console.log("   changesSummary:", changesSummary);
+    console.log("   modifiedTsx length:", modifiedTsx?.length);
+    console.log("   modifiedTsx first 100 chars:", modifiedTsx?.substring(0, 100));
+
+    const response = {
       content: [{
-        type: "text",
+        type: "text" as const,
         text: `✅ Slides updated: ${changesSummary}`
       }],
       structuredContent: {
@@ -229,6 +234,9 @@ const server = new McpServer(
         changesSummary
       }
     };
+
+    console.log("   📤 Returning response with structuredContent");
+    return response;
   }
 )
 .registerWidget(

@@ -557,6 +557,27 @@ function PdfUploader() {
     output: { structuredContent?: { modifiedTsx: string; changesSummary: string } };
   }>();
 
+  // Debug: Log widget mount
+  React.useEffect(() => {
+    console.log("🎬 SlideStorm Widget MOUNTED - listening for tool calls");
+    return () => console.log("🛑 SlideStorm Widget UNMOUNTED");
+  }, []);
+
+  // Debug: Log tool info state changes (on every render)
+  React.useEffect(() => {
+    console.log("🔍 TOOL INFO STATE CHANGED:", {
+      status: updateSlidesToolInfo.status,
+      isIdle: updateSlidesToolInfo.isIdle,
+      isPending: updateSlidesToolInfo.isPending,
+      isSuccess: updateSlidesToolInfo.isSuccess,
+      hasInput: !!updateSlidesToolInfo.input,
+      hasOutput: !!updateSlidesToolInfo.output,
+      input: updateSlidesToolInfo.input,
+      outputKeys: updateSlidesToolInfo.output ? Object.keys(updateSlidesToolInfo.output) : [],
+      structuredContent: updateSlidesToolInfo.output?.structuredContent
+    });
+  }, [updateSlidesToolInfo.status, updateSlidesToolInfo.isSuccess]);
+
   const workspaceId = import.meta.env.VITE_WORKSPACE_ID;
   const agentId = import.meta.env.VITE_AGENT_ID;
   const proxyUrl = import.meta.env.VITE_PROXY_URL || 'http://localhost:3000';
@@ -579,11 +600,20 @@ function PdfUploader() {
 
   // Send code to iframe when ready
   React.useEffect(() => {
+    console.log("📤 Iframe postMessage effect triggered");
+    console.log("   iframeReady:", iframeReady);
+    console.log("   iframeRef.current:", !!iframeRef.current);
+    console.log("   tsxFileContent length:", tsxFileContent?.length);
+
     if (iframeReady && iframeRef.current && tsxFileContent) {
+      console.log("📨 Sending EXECUTE_CODE to iframe");
       iframeRef.current.contentWindow?.postMessage({
         type: 'EXECUTE_CODE',
         code: tsxFileContent
       }, '*');
+      console.log("   ✓ postMessage sent");
+    } else {
+      console.log("⏸️ Not sending - conditions not met");
     }
   }, [iframeReady, tsxFileContent]);
 
@@ -627,22 +657,38 @@ function PdfUploader() {
   // Apply modifications from update_slides tool (called by ChatGPT from chat)
   // Listen to tool calls via useToolInfo hook - this is the correct Skybridge pattern
   React.useEffect(() => {
+    console.log("🎯 useEffect triggered - updateSlidesToolInfo changed");
+    console.log("   isSuccess:", updateSlidesToolInfo.isSuccess);
+    console.log("   output:", updateSlidesToolInfo.output);
+
     if (updateSlidesToolInfo.isSuccess) {
+      console.log("✅ Tool is in success state!");
+
       const modifiedTsx = updateSlidesToolInfo.output?.structuredContent?.modifiedTsx;
       const changesSummary = updateSlidesToolInfo.output?.structuredContent?.changesSummary;
 
+      console.log("   modifiedTsx exists:", !!modifiedTsx);
+      console.log("   modifiedTsx length:", modifiedTsx?.length);
+      console.log("   changesSummary:", changesSummary);
+
       if (modifiedTsx) {
-        console.log("✅ Tool called! Applying changes:", changesSummary);
+        console.log("🚀 Applying changes to iframe:", changesSummary);
 
         // 1. Update local state (triggers iframe re-render via existing effect)
         setTsxFileContent(modifiedTsx);
+        console.log("   ✓ setTsxFileContent called");
 
         // 2. Persist in widgetState for next modifications
         setWidgetState({
           tsxContent: modifiedTsx,
           slidesGenerated: true
         });
+        console.log("   ✓ setWidgetState called");
+      } else {
+        console.log("⚠️ modifiedTsx is empty or undefined");
       }
+    } else {
+      console.log("⏳ Tool not in success state yet, status:", updateSlidesToolInfo.status);
     }
   }, [updateSlidesToolInfo.isSuccess, updateSlidesToolInfo.output, setWidgetState]);
 
