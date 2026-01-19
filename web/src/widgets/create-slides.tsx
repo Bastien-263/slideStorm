@@ -1,692 +1,46 @@
 import "@/index.css";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { mountWidget } from "skybridge/web";
 import * as pdfjsLib from "pdfjs-dist";
 import React from 'react';
-import { LUCIDE_ICON_NAMES } from './lucide-icons';
+import ReactDOM from 'react-dom/client';
+import Frame, { FrameContextConsumer } from 'react-frame-component';
+import * as LucideIcons from 'lucide-react';
 
-// Configure PDF.js worker for client-side PDF processing
-// Use CDN for worker to avoid build path issues in production
+// Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@5.4.530/build/pdf.worker.min.mjs';
 
-// Embed frame-runner.html directly to avoid 404 in production
-const FRAME_RUNNER_HTML = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Frame Runner</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script crossorigin src="https://unpkg.com/react@18.2.0/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://unpkg.com/recharts@2.12.7/dist/Recharts.js"></script>
-  <script src="https://unpkg.com/lucide@0.263.1/dist/umd/lucide.min.js"></script>
-  <style>
-    body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      background: #000;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 100vh;
-    }
-    #root {
-      /* Force strict 16:9 aspect ratio */
-      aspect-ratio: 16 / 9;
-      width: 100%;
-      max-width: 100vw;
-      max-height: 100vh;
-      overflow: hidden;
-      background: white;
-      position: relative;
-    }
-    /* Ensure content fits within 16:9 */
-    #root > * {
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-      box-sizing: border-box;
-    }
-  </style>
-</head>
-<body>
-  <div id="root"></div>
-
-  <script type="text/babel" data-type="module">
-    const { useState, useEffect, useMemo, useCallback } = React;
-
-    // Custom hooks that Dust might use
-    const useFile = (fileId) => {
-      // Placeholder for file loading - returns null for now
-      // In a real implementation, this would fetch file data
-      return null;
-    };
-
-    // Simple Button component
-    const Button = ({ children, variant, size, disabled, className = '', onClick, ...props }) => {
-      const baseClasses = 'inline-flex items-center justify-center transition-all';
-      const variantClasses = variant === 'outline' ? 'border border-current' : '';
-      const sizeClasses = size === 'icon' ? 'p-2' : size === 'lg' ? 'px-6 py-3' : 'px-4 py-2';
-      const disabledClasses = disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer';
-
-      const handleClick = (e) => {
-        if (!disabled && onClick) {
-          onClick(e);
-        }
-      };
-
-      return (
-        <button
-          onClick={handleClick}
-          disabled={disabled}
-          className={\`\${baseClasses} \${variantClasses} \${sizeClasses} \${disabledClasses} \${className}\`}
-          {...props}
-        >
-          {children}
-        </button>
-      );
-    };
-
-    // Simple Card component
-    const Card = ({ children, className = '', ...props }) => {
-      return (
-        <div className={\`bg-white rounded-lg shadow-md \${className}\`} {...props}>
-          {children}
-        </div>
-      );
-    };
-
-    const CardHeader = ({ children, className = '', ...props }) => {
-      return (
-        <div className={\`p-6 \${className}\`} {...props}>
-          {children}
-        </div>
-      );
-    };
-
-    const CardTitle = ({ children, className = '', ...props }) => {
-      return (
-        <h3 className={\`text-2xl font-bold \${className}\`} {...props}>
-          {children}
-        </h3>
-      );
-    };
-
-    const CardContent = ({ children, className = '', ...props }) => {
-      return (
-        <div className={\`p-6 pt-0 \${className}\`} {...props}>
-          {children}
-        </div>
-      );
-    };
-
-    // Generic component factory - creates any missing component on the fly
-    const createGenericComponent = (componentName) => {
-      return ({ children, className = '', ...props }) => {
-        // Detect common component patterns and provide appropriate defaults
-        const lowerName = componentName.toLowerCase();
-
-        if (lowerName.includes('header') || lowerName.includes('title')) {
-          return <div className={\`font-bold text-lg \${className}\`} {...props}>{children}</div>;
-        }
-        if (lowerName.includes('content') || lowerName.includes('body')) {
-          return <div className={\`p-4 \${className}\`} {...props}>{children}</div>;
-        }
-        if (lowerName.includes('footer')) {
-          return <div className={\`mt-auto \${className}\`} {...props}>{children}</div>;
-        }
-        if (lowerName.includes('description')) {
-          return <p className={\`text-sm text-gray-600 \${className}\`} {...props}>{children}</p>;
-        }
-
-        // Default: just a div with the class name
-        return <div className={className} {...props}>{children}</div>;
-      };
-    };
-
-    // Create a generic icon component factory that uses lucide dynamically
-    const createLucideIcon = (iconName) => {
-      return ({ className, size = 24, ...props }) => {
-        const ref = React.useRef(null);
-
-        React.useEffect(() => {
-          if (ref.current && typeof lucide !== 'undefined' && lucide.createIcons) {
-            // Clear previous content
-            ref.current.innerHTML = '';
-
-            // Create icon element
-            const iconElement = document.createElement('i');
-            iconElement.setAttribute('data-lucide', iconName.toLowerCase().replace(/([A-Z])/g, '-$1').replace(/^-/, ''));
-            ref.current.appendChild(iconElement);
-
-            // Initialize lucide icons
-            lucide.createIcons();
-          }
-        }, [iconName]);
-
-        return <span ref={ref} className={className} style={{ display: 'inline-flex', width: size, height: size }} {...props}></span>;
-      };
-    };
-
-    // Initialize component cache ONCE at module load
-    if (!window.__componentCache__) {
-      window.__componentCache__ = {
-        // Pre-register base components
-        React, useState, useEffect, useMemo, useCallback,
-        Button, Card, CardHeader, CardTitle, CardContent,
-        useFile,
-        Recharts: typeof Recharts !== 'undefined' ? Recharts : {}
-      };
-
-      // Pre-cache ALL Lucide icons (500+ icons) to avoid runtime resolution issues
-      const allLucideIcons = ${JSON.stringify(LUCIDE_ICON_NAMES)};
-
-      console.log('[Lucide] Pre-caching', allLucideIcons.length, 'icons');
-      let successCount = 0;
-      let errorCount = 0;
-
-      // List of critical window properties that should NEVER be overwritten
-      // These are used by browsers, Babel, React, and other core libraries
-      const protectedProps = [
-        'Infinity', 'NaN', 'undefined', 'eval', 'isFinite', 'isNaN', 'parseFloat', 'parseInt',
-        'decodeURI', 'decodeURIComponent', 'encodeURI', 'encodeURIComponent',
-        'Object', 'Function', 'Boolean', 'Symbol', 'Error', 'Number', 'BigInt', 'Math', 'Date',
-        'String', 'RegExp', 'Array', 'Int8Array', 'Uint8Array', 'Uint8ClampedArray',
-        'Int16Array', 'Uint16Array', 'Int32Array', 'Uint32Array', 'Float32Array', 'Float64Array',
-        'Map', 'Set', 'WeakMap', 'WeakSet', 'ArrayBuffer', 'DataView', 'JSON', 'Promise',
-        'Generator', 'Proxy', 'Reflect',
-        'Intl', 'WebAssembly', 'console', 'performance', 'navigator', 'location', 'history',
-        'document', 'window', 'self', 'top', 'parent', 'frames', 'localStorage', 'sessionStorage',
-        'indexedDB', 'crypto', 'fetch', 'XMLHttpRequest', 'URL', 'URLSearchParams', 'Blob',
-        'File', 'FileReader', 'FormData', 'Headers', 'Request', 'Response', 'Image',
-        'Audio', 'Video', 'Element', 'Node', 'Event', 'MouseEvent', 'KeyboardEvent',
-        'CustomEvent', 'MessageEvent', 'ErrorEvent', 'AnimationEvent', 'TransitionEvent'
-      ];
-
-      allLucideIcons.forEach(iconName => {
-        const icon = createLucideIcon(iconName);
-        window.__componentCache__[iconName] = icon;
-
-        // Skip protected properties that are critical for browser/Babel/React
-        if (protectedProps.includes(iconName)) {
-          console.log('[Lucide] Skipping protected property:', iconName);
-          return;
-        }
-
-        // Force assign to window, even if property exists (overwrite it)
-        try {
-          window[iconName] = icon;
-          successCount++;
-        } catch (e) {
-          // Only skip truly read-only properties
-          console.warn('[Lucide] Could not assign icon "' + iconName + '" to window (reserved property):', e.message);
-          errorCount++;
-        }
-      });
-
-      console.log('[Lucide] Pre-cache complete: ' + successCount + ' assigned, ' + errorCount + ' errors (read-only properties)');
-      console.log('[Lucide] Checking Globe in cache:', !!window.__componentCache__.Globe);
-      console.log('[Lucide] Checking Globe on window:', typeof window.Globe, window.Globe);
-    }
-
-    // Universal component resolver - similar to Dust's scope injection
-    // This allows ANY component to be resolved dynamically
-    const resolveComponent = (componentName) => {
-      // Check cache first (fast path)
-      if (window.__componentCache__[componentName]) {
-        return window.__componentCache__[componentName];
-      }
-
-      // Check if it's already on window
-      if (window[componentName]) {
-        window.__componentCache__[componentName] = window[componentName];
-        return window[componentName];
-      }
-
-      // Create and cache new icon component (Lucide)
-      // Assume any PascalCase name is a Lucide icon
-      if (typeof componentName === 'string' && componentName[0] === componentName[0].toUpperCase()) {
-        console.log(\`[ComponentResolver] Auto-creating Lucide icon: \${componentName}\`);
-        const component = createLucideIcon(componentName);
-        window.__componentCache__[componentName] = component;
-        window[componentName] = component; // Also set globally for React access
-        return component;
-      }
-
-      return undefined;
-    };
-
-    // Expose resolver globally for React components to access
-    window.__resolveComponent__ = resolveComponent;
-
-    // Listen for messages from parent
-    window.addEventListener('message', async (event) => {
-      // Handle keyboard events forwarded from parent
-      if (event.data.type === 'KEYBOARD_EVENT') {
-        const key = event.data.key;
-
-        // Helper to check if a button matches navigation criteria
-        const matchesButton = (btn, keywords) => {
-          const text = btn.textContent?.toLowerCase() || '';
-          const ariaLabel = btn.getAttribute('aria-label')?.toLowerCase() || '';
-          const innerHTML = btn.innerHTML.toLowerCase();
-
-          return keywords.some(keyword =>
-            text.includes(keyword) ||
-            ariaLabel.includes(keyword) ||
-            innerHTML.includes(keyword)
-          );
-        };
-
-        // Helper to trigger all types of click events
-        const triggerClick = (element) => {
-          // Try multiple methods to ensure the click is registered
-          element.click();
-          element.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-          element.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true }));
-          element.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, cancelable: true }));
-        };
-
-        // Left arrow or Page Up -> Previous slide
-        if (key === 'ArrowLeft' || key === 'PageUp') {
-          const allButtons = document.querySelectorAll('button, [role="button"], div[onclick], span[onclick]');
-          for (const btn of allButtons) {
-            if (matchesButton(btn, ['prev', 'précéd', 'previous', 'chevron-left', 'arrow-left', '<'])) {
-              triggerClick(btn);
-              break;
-            }
-          }
-        }
-
-        // Right arrow, Page Down, or Space -> Next slide
-        if (key === 'ArrowRight' || key === 'PageDown' || key === ' ') {
-          const allButtons = document.querySelectorAll('button, [role="button"], div[onclick], span[onclick]');
-          console.log('[Navigation] Looking for Next button among', allButtons.length, 'buttons');
-          let found = false;
-          for (const btn of allButtons) {
-            if (matchesButton(btn, ['next', 'suiv', 'suivant', 'chevron-right', 'arrow-right', '>'])) {
-              console.log('[Navigation] Found Next button, clicking it');
-              triggerClick(btn);
-              found = true;
-              break;
-            }
-          }
-          if (!found) {
-            console.warn('[Navigation] No Next button found');
-          }
-        }
-
-        // Home -> First slide
-        if (key === 'Home') {
-          const allButtons = document.querySelectorAll('button, [role="button"], div[onclick], span[onclick]');
-          for (let i = 0; i < 100; i++) {
-            let found = false;
-            for (const btn of allButtons) {
-              if (matchesButton(btn, ['prev', 'précéd', 'previous', 'chevron-left', 'arrow-left'])) {
-                triggerClick(btn);
-                found = true;
-                break;
-              }
-            }
-            if (!found) break;
-          }
-        }
-
-        // End -> Last slide
-        if (key === 'End') {
-          const allButtons = document.querySelectorAll('button, [role="button"], div[onclick], span[onclick]');
-          for (let i = 0; i < 100; i++) {
-            let found = false;
-            for (const btn of allButtons) {
-              if (matchesButton(btn, ['next', 'suiv', 'suivant', 'chevron-right', 'arrow-right'])) {
-                triggerClick(btn);
-                found = true;
-                break;
-              }
-            }
-            if (!found) break;
-          }
-        }
-      }
-
-      if (event.data.type === 'EXECUTE_CODE') {
-        const code = event.data.code;
-
-        try {
-          // Transform the code
-          let transformedCode = code;
-
-          // Remove imports
-          transformedCode = transformedCode.replace(/^import\\s+.*?from\\s+["'].*?["'];?\\s*$/gm, '');
-
-          // Remove exports
-          transformedCode = transformedCode
-            .replace(/^export\\s+default\\s+/gm, '')
-            .replace(/^export\\s+(const|function|class)\\s+/gm, '$1 ');
-
-          // Use Babel to transform JSX to JavaScript
-          // Use typescript preset to strip type annotations, then react preset for JSX
-          const babelTransformed = Babel.transform(transformedCode, {
-            presets: ['typescript', 'react'],
-            filename: 'component.tsx'
-          }).code;
-
-          // Find component name
-          const componentMatch = transformedCode.match(/(?:const|function)\\s+(\\w+)\\s*=?\\s*(?:\\(\\)|=>|\\()/);
-          const componentName = componentMatch ? componentMatch[1] : null;
-
-          if (componentName) {
-            // Wrap in function that returns the component
-            const wrappedCode = \`
-              \${babelTransformed}
-
-              return \${componentName};
-            \`;
-
-            // Make all base components available globally
-            window.React = React;
-            window.useState = useState;
-            window.useEffect = useEffect;
-            window.useMemo = useMemo;
-            window.useCallback = useCallback;
-            window.useFile = useFile;
-            window.Button = Button;
-            window.Card = Card;
-            window.CardHeader = CardHeader;
-            window.CardTitle = CardTitle;
-            window.CardContent = CardContent;
-            window.Recharts = typeof Recharts !== 'undefined' ? Recharts : {};
-            window.createLucideIcon = createLucideIcon;
-            window.createGenericComponent = createGenericComponent;
-
-            // Extract all potential component names from the transformed code
-            // Look for PascalCase identifiers that could be components
-            const componentNamePattern = /\b([A-Z][a-zA-Z0-9]*)\b/g;
-            const potentialComponents = new Set();
-            let match;
-            while ((match = componentNamePattern.exec(babelTransformed)) !== null) {
-              potentialComponents.add(match[1]);
-            }
-
-            // Pre-resolve all potential components and expose them globally
-            // This ensures they're available when the code executes
-            console.log('[CodeExec] Found potential components:', Array.from(potentialComponents));
-            potentialComponents.forEach(name => {
-              if (!window[name]) {
-                const resolved = window.__resolveComponent__(name);
-                if (resolved) {
-                  window[name] = resolved;
-                  console.log('[CodeExec] Resolved and assigned:', name);
-                } else {
-                  console.warn('[CodeExec] Could not resolve:', name);
-                }
-              } else {
-                console.log('[CodeExec] Component already exists on window:', name, typeof window[name]);
-              }
-            });
-
-            // Also expose all cached components globally
-            // Force assign all cached icons, even if the property exists on window
-            console.log('[CodeExec] Force assigning', Object.keys(window.__componentCache__).length, 'cached components to window');
-            let forceAssigned = 0;
-
-            // Same protected properties list as during pre-caching
-            const protectedProps = [
-              'Infinity', 'NaN', 'undefined', 'eval', 'isFinite', 'isNaN', 'parseFloat', 'parseInt',
-              'decodeURI', 'decodeURIComponent', 'encodeURI', 'encodeURIComponent',
-              'Object', 'Function', 'Boolean', 'Symbol', 'Error', 'Number', 'BigInt', 'Math', 'Date',
-              'String', 'RegExp', 'Array', 'Int8Array', 'Uint8Array', 'Uint8ClampedArray',
-              'Int16Array', 'Uint16Array', 'Int32Array', 'Uint32Array', 'Float32Array', 'Float64Array',
-              'Map', 'Set', 'WeakMap', 'WeakSet', 'ArrayBuffer', 'DataView', 'JSON', 'Promise',
-              'Generator', 'Proxy', 'Reflect',
-              'Intl', 'WebAssembly', 'console', 'performance', 'navigator', 'location', 'history',
-              'document', 'window', 'self', 'top', 'parent', 'frames', 'localStorage', 'sessionStorage',
-              'indexedDB', 'crypto', 'fetch', 'XMLHttpRequest', 'URL', 'URLSearchParams', 'Blob',
-              'File', 'FileReader', 'FormData', 'Headers', 'Request', 'Response', 'Image',
-              'Audio', 'Video', 'Element', 'Node', 'Event', 'MouseEvent', 'KeyboardEvent',
-              'CustomEvent', 'MessageEvent', 'ErrorEvent', 'AnimationEvent', 'TransitionEvent'
-            ];
-
-            Object.keys(window.__componentCache__).forEach(key => {
-              // Skip base React components that should not be overwritten
-              const skipKeys = ['React', 'useState', 'useEffect', 'useMemo', 'useCallback', 'useFile', 'Button', 'Card', 'CardHeader', 'CardTitle', 'CardContent', 'Recharts'];
-              if (skipKeys.includes(key) || protectedProps.includes(key)) {
-                return; // Skip protected properties
-              }
-
-              try {
-                window[key] = window.__componentCache__[key];
-                forceAssigned++;
-              } catch (e) {
-                console.warn('[CodeExec] Could not force assign:', key, e.message);
-              }
-            });
-            console.log('[CodeExec] Force assigned', forceAssigned, 'components');
-            console.log('[CodeExec] Final check - Globe on window:', typeof window.Globe, !!window.Globe);
-            console.log('[CodeExec] Final check - Globe in cache:', !!window.__componentCache__.Globe);
-
-            // Create a Proxy that intercepts property access using the unified cache
-            // This mirrors Dust's approach of checking a centralized component scope
-            const componentProxy = new Proxy({}, {
-              get: (target, prop) => {
-                // Check window first (where we pre-resolved components)
-                if (prop in window) {
-                  return window[prop];
-                }
-
-                // Use the resolver function for consistent cache behavior
-                const resolved = window.__resolveComponent__(prop);
-                if (resolved) {
-                  return resolved;
-                }
-
-                return undefined;
-              }
-            });
-
-            const globalProxy = componentProxy;
-
-            // Use 'with' statement via function wrapper to inject proxy
-            const functionParams = ['componentProxy'];
-            const wrappedWithProxy = \`
-              with (componentProxy) {
-                \${babelTransformed}
-                return \${componentName};
-              }
-            \`;
-
-            const componentFactory = new Function(...functionParams, wrappedWithProxy);
-            const Component = componentFactory(globalProxy);
-
-            // Render the component
-            const root = ReactDOM.createRoot(document.getElementById('root'));
-            root.render(React.createElement(Component));
-
-            // Add keyboard navigation after component is rendered
-            // Remove any existing keyboard listener to avoid duplicates
-            if (window.keyboardNavigationHandler) {
-              document.removeEventListener('keydown', window.keyboardNavigationHandler);
-            }
-
-            window.keyboardNavigationHandler = (e) => {
-              if (['ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', ' ', 'Home', 'End'].includes(e.key)) {
-                e.preventDefault();
-
-                const allButtons = document.querySelectorAll('button, [role="button"], [onclick]');
-                let targetButton = null;
-
-                if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
-                  // Find previous button
-                  for (const btn of allButtons) {
-                    const text = (btn.textContent || '').toLowerCase();
-                    const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
-                    const className = (btn.className || '').toLowerCase();
-
-                    if (text.includes('prev') || text.includes('précéd') || text.includes('back') ||
-                        ariaLabel.includes('prev') || ariaLabel.includes('back') ||
-                        className.includes('prev') || className.includes('back')) {
-                      targetButton = btn;
-                      break;
-                    }
-                  }
-
-                  // Fallback: look for left arrow SVG or icons
-                  if (!targetButton) {
-                    for (const btn of allButtons) {
-                      const svgPath = btn.querySelector('svg path, svg polyline');
-                      if (svgPath) {
-                        const pathData = (svgPath.getAttribute('d') || svgPath.getAttribute('points') || '').toLowerCase();
-                        if (pathData.includes('15 18 9 12') || pathData.includes('12 19 5 12')) {
-                          targetButton = btn;
-                          break;
-                        }
-                      }
-                    }
-                  }
-                } else if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
-                  // Find next button
-                  for (const btn of allButtons) {
-                    const text = (btn.textContent || '').toLowerCase();
-                    const ariaLabel = (btn.getAttribute('aria-label') || '').toLowerCase();
-                    const className = (btn.className || '').toLowerCase();
-
-                    if (text.includes('next') || text.includes('suiv') || text.includes('forward') ||
-                        ariaLabel.includes('next') || ariaLabel.includes('forward') ||
-                        className.includes('next') || className.includes('forward')) {
-                      targetButton = btn;
-                      break;
-                    }
-                  }
-
-                  // Fallback: look for right arrow SVG or icons
-                  if (!targetButton) {
-                    for (const btn of allButtons) {
-                      const svgPath = btn.querySelector('svg path, svg polyline');
-                      if (svgPath) {
-                        const pathData = (svgPath.getAttribute('d') || svgPath.getAttribute('points') || '').toLowerCase();
-                        if (pathData.includes('9 18 15 12') || pathData.includes('12 5 19 12')) {
-                          targetButton = btn;
-                          break;
-                        }
-                      }
-                    }
-                  }
-                }
-
-                if (targetButton) {
-                  targetButton.click();
-                }
-              }
-            };
-
-            setTimeout(() => {
-              // Add listeners to both document and window to ensure we catch keyboard events
-              document.addEventListener('keydown', window.keyboardNavigationHandler);
-              window.addEventListener('keydown', window.keyboardNavigationHandler);
-
-              // Also make the body focusable and focus it
-              document.body.tabIndex = -1;
-              document.body.style.outline = 'none';
-              document.body.focus();
-
-              // Auto-focus the root div to capture keyboard events
-              const rootElement = document.getElementById('root');
-              if (rootElement) {
-                rootElement.tabIndex = -1; // Make it focusable
-                rootElement.style.outline = 'none'; // Remove focus outline
-              }
-            }, 100);
-
-            // Send success message
-            window.parent.postMessage({ type: 'RENDER_SUCCESS' }, '*');
-          }
-        } catch (error) {
-          console.error('Render error:', error);
-
-          // Display error in iframe
-          const root = ReactDOM.createRoot(document.getElementById('root'));
-          root.render(
-            React.createElement('div', {
-              style: {
-                padding: '20px',
-                background: '#fee',
-                color: '#c00',
-                borderRadius: '8px',
-                margin: '20px',
-                fontFamily: 'monospace',
-                fontSize: '14px'
-              }
-            }, error.toString())
-          );
-
-          // Send error message to parent
-          window.parent.postMessage({
-            type: 'RENDER_ERROR',
-            error: error.toString()
-          }, '*');
-        }
-      }
-    });
-
-    // Notify parent that iframe is ready
-    window.parent.postMessage({ type: 'IFRAME_READY' }, '*');
-  </script>
-</body>
-</html>`;
+type Message = {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  isGenerating?: boolean;
+  hasSlides?: boolean;
+};
 
 function PdfUploader() {
-  const [slideSubjectAndContent, setSlideSubjectAndContent] = useState("");
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [inputValue, setInputValue] = useState("");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pngFiles, setPngFiles] = useState<File[]>([]);
   const [isConverting, setIsConverting] = useState(false);
-  const [conversionComplete, setConversionComplete] = useState(false);
   const [isSending, setIsSending] = useState(false);
-  const [sendComplete, setSendComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isReceivingResponse, setIsReceivingResponse] = useState(false);
   const [tsxFileContent, setTsxFileContent] = useState<string | null>(null);
   const [tsxFileName, setTsxFileName] = useState<string | null>(null);
-  const iframeRef = React.useRef<HTMLIFrameElement>(null);
-  const [iframeReady, setIframeReady] = React.useState(false);
-  const [renderError, setRenderError] = React.useState<string | null>(null);
-  const [isFullscreen, setIsFullscreen] = React.useState(false);
-  const fullscreenContainerRef = React.useRef<HTMLDivElement>(null);
+  const [renderError, setRenderError] = useState<string | null>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const fullscreenContainerRef = useRef<HTMLDivElement>(null);
+  const frameRef = useRef<any>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const workspaceId = import.meta.env.VITE_WORKSPACE_ID;
   const agentId = import.meta.env.VITE_AGENT_ID;
   const proxyUrl = import.meta.env.VITE_PROXY_URL || 'http://localhost:3000';
 
-  // Handle iframe communication
-  React.useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data.type === 'IFRAME_READY') {
-        setIframeReady(true);
-      } else if (event.data.type === 'RENDER_ERROR') {
-        setRenderError(event.data.error);
-      } else if (event.data.type === 'RENDER_SUCCESS') {
-        setRenderError(null);
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
-  }, []);
-
-  // Send code to iframe when ready
-  React.useEffect(() => {
-    if (iframeReady && iframeRef.current && tsxFileContent) {
-      iframeRef.current.contentWindow?.postMessage({
-        type: 'EXECUTE_CODE',
-        code: tsxFileContent
-      }, '*');
-    }
-  }, [iframeReady, tsxFileContent]);
-
   // Handle fullscreen changes
-  React.useEffect(() => {
+  useEffect(() => {
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
     };
@@ -696,24 +50,48 @@ function PdfUploader() {
   }, []);
 
   // Forward keyboard events to iframe for navigation (only in fullscreen)
-  React.useEffect(() => {
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Only handle keyboard navigation when in fullscreen mode
       if (!isFullscreen) return;
 
-      // Don't interfere if user is typing in an input/textarea
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
 
-      // Only forward navigation keys
       if (['ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(e.key)) {
         e.preventDefault();
-        // Forward key event to iframe
-        if (iframeRef.current?.contentWindow) {
-          iframeRef.current.contentWindow.postMessage({
-            type: 'KEYBOARD_EVENT',
-            key: e.key
-          }, '*');
+        
+        // Try to find and click navigation buttons in the frame
+        if (frameRef.current?.node?.contentWindow) {
+          const iframeDoc = frameRef.current.node.contentWindow.document;
+          const allButtons = iframeDoc.querySelectorAll('button, [role="button"]');
+
+          const matchesButton = (btn: Element, keywords: string[]) => {
+            const text = btn.textContent?.toLowerCase() || '';
+            const ariaLabel = btn.getAttribute('aria-label')?.toLowerCase() || '';
+            return keywords.some(keyword => text.includes(keyword) || ariaLabel.includes(keyword));
+          };
+
+          let targetButton: Element | null = null;
+
+          if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+            for (const btn of allButtons) {
+              if (matchesButton(btn, ['prev', 'précéd', 'previous', 'back'])) {
+                targetButton = btn;
+                break;
+              }
+            }
+          } else if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ') {
+            for (const btn of allButtons) {
+              if (matchesButton(btn, ['next', 'suiv', 'suivant', 'forward'])) {
+                targetButton = btn;
+                break;
+              }
+            }
+          }
+
+          if (targetButton) {
+            (targetButton as HTMLElement).click();
+          }
         }
       }
     };
@@ -722,7 +100,6 @@ function PdfUploader() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreen]);
 
-  // Toggle fullscreen presentation mode
   const toggleFullscreen = async () => {
     if (!fullscreenContainerRef.current) return;
 
@@ -733,7 +110,7 @@ function PdfUploader() {
         await document.exitFullscreen();
       }
     } catch (err) {
-      // Fullscreen failed silently
+      console.error('Fullscreen error:', err);
     }
   };
 
@@ -768,7 +145,6 @@ function PdfUploader() {
 
       const pngFilesArray: File[] = [];
 
-      // Convert each page to PNG and create File objects
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
         const viewport = page.getViewport({ scale: 2 });
@@ -781,7 +157,6 @@ function PdfUploader() {
         if (context) {
           await page.render({ canvasContext: context, viewport } as any).promise;
 
-          // Convert canvas to blob then to File
           const blob = await new Promise<Blob>((resolve) => {
             canvas.toBlob((blob) => resolve(blob!), 'image/png');
           });
@@ -792,7 +167,6 @@ function PdfUploader() {
       }
 
       setPngFiles(pngFilesArray);
-      setConversionComplete(true);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Unknown error');
     } finally {
@@ -802,7 +176,6 @@ function PdfUploader() {
 
   const streamAgentResponse = async (convId: string, messageContent: string) => {
     try {
-      // Send message to Dust
       const messageUrl = `https://dust.tt/api/v1/w/${workspaceId}/assistant/conversations/${convId}/messages`;
       await callDustAPI(messageUrl, {
         content: messageContent,
@@ -810,7 +183,6 @@ function PdfUploader() {
         context: { username: 'slidestorm', timezone: 'Europe/Paris' }
       });
 
-      // Stream conversation events
       const streamUrl = `https://dust.tt/api/v1/w/${workspaceId}/assistant/conversations/${convId}/events`;
       const response = await fetch(`${proxyUrl}/widgets/api/dust-stream`, {
         method: 'POST',
@@ -821,7 +193,6 @@ function PdfUploader() {
       if (!response.ok) throw new Error(`Stream error: ${response.status}`);
       if (!response.body) throw new Error('No response body');
 
-      // Process SSE stream
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = "";
@@ -844,7 +215,6 @@ function PdfUploader() {
               const event = JSON.parse(jsonStr);
               const data = event.data;
 
-              // Wait for agent to finish
               if (data.type === 'agent_message_done') {
                 agentDone = true;
                 break;
@@ -856,11 +226,9 @@ function PdfUploader() {
         }
       }
 
-      // Fetch conversation details to get generated TSX file
       const convDetailsUrl = `https://dust.tt/api/v1/w/${workspaceId}/assistant/conversations/${convId}`;
       const convDetails = await callDustAPI(convDetailsUrl, null, 'GET');
 
-      // Find TSX files in agent actions
       const agentMessages = convDetails.conversation?.content
         ?.flat()
         .filter((item: any) => item.type === 'agent_message') || [];
@@ -873,25 +241,37 @@ function PdfUploader() {
             const file = action.generatedFiles[0];
             const fileId = file.fileId || file.sId;
 
-            // Download TSX file content
             const fileUrl = `https://dust.tt/api/v1/w/${workspaceId}/files/${fileId}`;
             const fileContent = await callDustAPI(fileUrl, null, 'GET', true);
 
-            // KEEP THIS LOG: Link to the Dust conversation for easy access
             console.log(`✅ Slides created successfully! View conversation: https://dust.tt/w/${workspaceId}/assistant/${convId}`);
 
             setTsxFileContent(fileContent);
             setTsxFileName(file.title || 'generated.tsx');
+
+            // Update the last assistant message with slides
+            setMessages(prev => {
+              const updated = [...prev];
+              const lastMsg = updated[updated.length - 1];
+              if (lastMsg && lastMsg.role === 'assistant') {
+                lastMsg.content = 'Your slides are ready!';
+                lastMsg.isGenerating = false;
+                lastMsg.hasSlides = true;
+              }
+              return updated;
+            });
             break;
           }
         }
       }
-
-      setIsReceivingResponse(false);
-      setSendComplete(true);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Stream error');
-      setIsReceivingResponse(false);
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `Error: ${error instanceof Error ? error.message : 'Stream error'}`,
+        timestamp: new Date()
+      }]);
     }
   };
 
@@ -902,28 +282,41 @@ function PdfUploader() {
     if (file.type === "application/pdf") {
       convertPdfToPng(file);
     } else if (file.type === "image/png") {
-      // Handle PNG directly
       setPdfFile(file);
       setPngFiles([file]);
-      setConversionComplete(true);
     } else if (file.type === "application/vnd.ms-powerpoint" || file.type === "application/vnd.openxmlformats-officedocument.presentationml.presentation") {
-      // Handle PPT/PPTX directly
       setPdfFile(file);
       setPngFiles([file]);
-      setConversionComplete(true);
     } else {
       setError("Please select a PDF, PNG, or PowerPoint file");
       return;
     }
   };
 
-  const handleSend = async () => {
-    if (!slideSubjectAndContent.trim()) return;
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
+
+  const handleSend = async () => {
+    if (!inputValue.trim()) return;
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: inputValue,
+      timestamp: new Date()
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    const messageContent = inputValue;
+    setInputValue("");
     setIsSending(true);
 
     try {
-      // Create conversation
       const conversationUrl = `https://dust.tt/api/v1/w/${workspaceId}/assistant/conversations`;
       const conversationJson = await callDustAPI(conversationUrl, {
         visibility: 'unlisted',
@@ -932,9 +325,7 @@ function PdfUploader() {
       const convId = conversationJson.conversation?.sId;
       if (!convId) throw new Error('Failed to create conversation');
 
-      // Upload files (PNG, PPT, or PPTX)
       for (const file of pngFiles) {
-        // Determine content type based on file type
         let contentType = 'image/png';
         if (file.type === 'application/vnd.ms-powerpoint') {
           contentType = 'application/vnd.ms-powerpoint';
@@ -942,7 +333,6 @@ function PdfUploader() {
           contentType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
         }
 
-        // Create file entry
         const fileCreateResponse = await callDustAPI(
           `https://dust.tt/api/v1/w/${workspaceId}/files`,
           {
@@ -956,326 +346,568 @@ function PdfUploader() {
         const fileId = fileCreateResponse.file?.sId;
         if (!fileId) throw new Error('Failed to create file entry');
 
-        // Upload file
         const formData = new FormData();
         formData.append('file', file);
         await callDustAPI(`https://dust.tt/api/v1/w/${workspaceId}/files/${fileId}`, formData);
 
-        // Create content fragment
         await callDustAPI(
           `https://dust.tt/api/v1/w/${workspaceId}/assistant/conversations/${convId}/content_fragments`,
           { title: file.name, fileId }
         );
       }
 
-      // Stream agent response
-      setIsReceivingResponse(true);
+      const assistantMessage: Message = {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant',
+        content: 'Generating your slides...',
+        timestamp: new Date(),
+        isGenerating: true
+      };
+      setMessages(prev => [...prev, assistantMessage]);
+
       setIsSending(false);
-      await streamAgentResponse(convId, slideSubjectAndContent);
+      await streamAgentResponse(convId, messageContent);
     } catch (error) {
       console.error('Error:', error);
       setError(error instanceof Error ? error.message : 'Unknown error');
+      setMessages(prev => [...prev, {
+        id: (Date.now() + 2).toString(),
+        role: 'assistant',
+        content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        timestamp: new Date()
+      }]);
     } finally {
       setIsSending(false);
     }
   };
 
-  // Generating slides state
-  if (isReceivingResponse) {
-    return (
-      <div style={{ padding: "20px", maxWidth: "600px" }}>
-        <div style={{
-          padding: "40px",
-          textAlign: "center",
-          background: "#f3e5f5",
-          borderRadius: "12px",
-        }}>
-          <div style={{
-            width: "50px",
-            height: "50px",
-            borderLeft: "4px solid #9c27b0",
-            borderRight: "4px solid #9c27b0",
-            borderBottom: "4px solid #9c27b0",
-            borderTop: "4px solid transparent",
-            borderRadius: "50%",
-            margin: "0 auto 20px",
-            animation: "spin 1s linear infinite"
-          }}></div>
-          <p style={{ fontSize: "18px", fontWeight: "bold", margin: 0 }}>
-            Generating slides...
-          </p>
+  // Slides viewer component
+  const SlidesViewer = () => (
+    <div style={{
+      marginTop: "16px",
+      borderRadius: "12px",
+      overflow: "hidden",
+      border: "1px solid #e5e7eb"
+    }}>
+      <div style={{
+        padding: "12px 16px",
+        background: "#f9fafb",
+        borderBottom: "1px solid #e5e7eb",
+        display: "flex",
+        gap: "8px",
+        alignItems: "center",
+        justifyContent: "space-between"
+      }}>
+        <span style={{ fontSize: "14px", fontWeight: "500", color: "#374151" }}>
+          {tsxFileName}
+        </span>
+        <div style={{ display: "flex", gap: "8px" }}>
+          <button
+            onClick={toggleFullscreen}
+            style={{
+              padding: "6px 12px",
+              background: "#10a37f",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              fontSize: "13px",
+              cursor: "pointer",
+              fontWeight: "500"
+            }}
+          >
+            {isFullscreen ? '✕ Exit' : '⛶ Present'}
+          </button>
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(tsxFileContent!);
+              alert('Code copied!');
+            }}
+            style={{
+              padding: "6px 12px",
+              background: "#6b7280",
+              color: "white",
+              border: "none",
+              borderRadius: "6px",
+              fontSize: "13px",
+              cursor: "pointer",
+              fontWeight: "500"
+            }}
+          >
+            Copy
+          </button>
         </div>
-        <style>{`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}</style>
       </div>
-    );
-  }
 
-  // Success state - slides generated
-  if (sendComplete) {
-    return (
-      <div style={{ padding: "20px", maxWidth: "800px" }}>
+      <div
+        ref={fullscreenContainerRef}
+        style={{
+          background: isFullscreen ? "#000" : "#f5f5f5",
+          padding: isFullscreen ? "0" : "20px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: isFullscreen ? "100vw" : "auto",
+          height: isFullscreen ? "100vh" : "auto"
+        }}
+      >
         <div style={{
-          padding: "30px",
-          textAlign: "center",
-          background: "#4caf50",
-          color: "white",
-          borderRadius: "12px",
+          width: "100%",
+          maxWidth: isFullscreen ? "none" : "100%",
+          aspectRatio: "16 / 9",
+          position: "relative",
+          height: isFullscreen ? "100%" : "auto"
         }}>
-          <div style={{ fontSize: "48px", marginBottom: "15px" }}>✅</div>
-          <h2 style={{ margin: "0 0 10px 0" }}>Slides generated successfully!</h2>
-          {pdfFile && (
-            <p style={{ margin: "0", opacity: "0.9" }}>
-              Template: {pdfFile.name} - {pngFiles.length} page{pngFiles.length > 1 ? 's' : ''} processed
-            </p>
-          )}
-        </div>
-        {tsxFileContent && (
-            <div style={{ marginTop: "20px" }}>
-              <div style={{ marginBottom: "10px", display: "flex", gap: "10px", alignItems: "center" }}>
-                <h3 style={{ margin: 0, flex: 1 }}>{tsxFileName}</h3>
-                <button
-                  onClick={toggleFullscreen}
-                  style={{
-                    padding: "8px 16px",
-                    background: "#4caf50",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "6px",
-                    fontSize: "14px",
-                    cursor: "pointer",
-                    fontWeight: "bold"
-                  }}
-                >
-                  {isFullscreen ? '✕ Exit Presentation' : '⛶ Presentation Mode'}
-                </button>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(tsxFileContent);
-                    alert('TSX content copied to clipboard!');
-                  }}
-                  style={{
-                    padding: "8px 16px",
-                    background: "#2196f3",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "6px",
-                    fontSize: "14px",
-                    cursor: "pointer",
-                    fontWeight: "bold"
-                  }}
-                >
-                  Copy Code
-                </button>
-              </div>
+          <Frame
+            ref={frameRef}
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "100%",
+              height: "100%",
+              border: "none",
+              background: "white"
+            }}
+            initialContent={`
+              <!DOCTYPE html>
+              <html lang="en">
+                <head>
+                  <meta charset="UTF-8">
+                  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                  <script src="https://cdn.tailwindcss.com"></script>
+                  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+                  <style>
+                    body {
+                      margin: 0;
+                      padding: 0;
+                      overflow: hidden;
+                      background: #000;
+                      display: flex;
+                      align-items: center;
+                      justify-content: center;
+                      min-height: 100vh;
+                    }
+                    #root {
+                      aspect-ratio: 16 / 9;
+                      width: 100%;
+                      max-width: 100vw;
+                      max-height: 100vh;
+                      overflow: hidden;
+                      background: white;
+                      position: relative;
+                    }
+                    #root > * {
+                      width: 100%;
+                      height: 100%;
+                      overflow: hidden;
+                      box-sizing: border-box;
+                    }
+                  </style>
+                </head>
+                <body>
+                  <div id="root"></div>
+                </body>
+              </html>
+            `}
+          >
+            <FrameContextConsumer>
+              {({ document: iframeDoc, window: iframeWindow }: any) => {
+                if (!iframeDoc || !iframeWindow) return null;
 
-              {/* Iframe wrapper with strict 16:9 aspect ratio */}
+                try {
+                  (iframeWindow as any).React = React;
+                  (iframeWindow as any).ReactDOM = ReactDOM;
+
+                  const protectedProps = new Set([
+                    'Infinity', 'NaN', 'undefined', 'eval', 'isFinite', 'isNaN', 'parseFloat', 'parseInt',
+                    'Object', 'Function', 'Boolean', 'Symbol', 'Error', 'Number', 'Date',
+                    'String', 'RegExp', 'Array', 'Map', 'Set', 'Promise',
+                    'Math', 'JSON', 'console', 'window', 'document', 'navigator', 'location'
+                  ]);
+
+                  Object.entries(LucideIcons).forEach(([name, Component]) => {
+                    if (!protectedProps.has(name)) {
+                      try {
+                        (iframeWindow as any)[name] = Component;
+                      } catch (e) {
+                        console.warn(`Could not assign icon: ${name}`);
+                      }
+                    }
+                  });
+
+                  (iframeWindow as any).useState = React.useState;
+                  (iframeWindow as any).useEffect = React.useEffect;
+                  (iframeWindow as any).useMemo = React.useMemo;
+                  (iframeWindow as any).useCallback = React.useCallback;
+
+                  (iframeWindow as any).Button = ({ children, variant, size, disabled, className = '', onClick, ...props }: any) => {
+                    const baseClasses = 'inline-flex items-center justify-center transition-all';
+                    const variantClasses = variant === 'outline' ? 'border border-current' : '';
+                    const sizeClasses = size === 'icon' ? 'p-2' : size === 'lg' ? 'px-6 py-3' : 'px-4 py-2';
+                    const disabledClasses = disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer';
+                    return React.createElement('button', {
+                      onClick: !disabled ? onClick : undefined,
+                      disabled,
+                      className: `${baseClasses} ${variantClasses} ${sizeClasses} ${disabledClasses} ${className}`,
+                      ...props
+                    }, children);
+                  };
+
+                  (iframeWindow as any).Card = ({ children, className = '', ...props }: any) => {
+                    return React.createElement('div', {
+                      className: `bg-white rounded-lg shadow-md ${className}`,
+                      ...props
+                    }, children);
+                  };
+
+                  (iframeWindow as any).CardHeader = ({ children, className = '', ...props }: any) => {
+                    return React.createElement('div', {
+                      className: `p-6 ${className}`,
+                      ...props
+                    }, children);
+                  };
+
+                  (iframeWindow as any).CardTitle = ({ children, className = '', ...props }: any) => {
+                    return React.createElement('h3', {
+                      className: `text-2xl font-bold ${className}`,
+                      ...props
+                    }, children);
+                  };
+
+                  (iframeWindow as any).CardContent = ({ children, className = '', ...props }: any) => {
+                    return React.createElement('div', {
+                      className: `p-6 pt-0 ${className}`,
+                      ...props
+                    }, children);
+                  };
+
+                  let code = tsxFileContent!;
+                  code = code.replace(/^import\s+.*?from\s+["'].*?["'];?\s*$/gm, '');
+                  code = code.replace(/^export\s+default\s+/gm, '').replace(/^export\s+(const|function|class)\s+/gm, '$1 ');
+
+                  const Babel = (iframeWindow as any).Babel;
+                  if (!Babel) {
+                    throw new Error('Babel not loaded in iframe');
+                  }
+
+                  const transformedCode = Babel.transform(code, {
+                    presets: ['typescript', 'react'],
+                    filename: 'component.tsx'
+                  }).code;
+
+                  const componentMatch = code.match(/(?:const|function)\s+(\w+)\s*=?\s*(?:\(\)|=>|\()/);
+                  const componentName = componentMatch ? componentMatch[1] : null;
+
+                  if (componentName) {
+                    const lucideIconNames = Object.keys(LucideIcons);
+                    const lucideIconComponents = Object.values(LucideIcons);
+
+                    const componentFactory = new Function(
+                      'React', 'useState', 'useEffect', 'useMemo', 'useCallback',
+                      ...lucideIconNames,
+                      'Button', 'Card', 'CardHeader', 'CardTitle', 'CardContent',
+                      `${transformedCode}\nreturn ${componentName};`
+                    );
+
+                    const Component = componentFactory(
+                      React, React.useState, React.useEffect, React.useMemo, React.useCallback,
+                      ...lucideIconComponents,
+                      (iframeWindow as any).Button,
+                      (iframeWindow as any).Card,
+                      (iframeWindow as any).CardHeader,
+                      (iframeWindow as any).CardTitle,
+                      (iframeWindow as any).CardContent
+                    );
+
+                    const rootElement = iframeDoc.getElementById('root');
+                    if (rootElement) {
+                      const IframeReactDOM = (iframeWindow as any).ReactDOM;
+                      const root = IframeReactDOM.createRoot(rootElement);
+                      root.render(React.createElement(Component));
+                    }
+
+                    setRenderError(null);
+                  }
+                } catch (error) {
+                  console.error('Render error:', error);
+                  setRenderError(error instanceof Error ? error.message : String(error));
+                }
+
+                return null;
+              }}
+            </FrameContextConsumer>
+          </Frame>
+        </div>
+      </div>
+
+      {renderError && (
+        <div style={{
+          padding: "10px",
+          background: "#fef2f2",
+          color: "#991b1b",
+          fontSize: "12px",
+          fontFamily: "monospace",
+          whiteSpace: "pre-wrap"
+        }}>
+          {renderError}
+        </div>
+      )}
+    </div>
+  );
+
+  const canSend = inputValue.trim() && !isSending;
+
+  // ChatGPT-like interface
+  return (
+    <div style={{
+      display: "flex",
+      flexDirection: "column",
+      height: "100vh",
+      background: "#ffffff",
+      fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+    }}>
+      <style>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        @keyframes pulse {
+          0%, 100% { opacity: 0.4; }
+          50% { opacity: 1; }
+        }
+        .typing-dot {
+          width: 8px;
+          height: 8px;
+          background: #666;
+          border-radius: 50%;
+          display: inline-block;
+          margin: 0 2px;
+          animation: pulse 1.4s infinite;
+        }
+        .typing-dot:nth-child(2) {
+          animation-delay: 0.2s;
+        }
+        .typing-dot:nth-child(3) {
+          animation-delay: 0.4s;
+        }
+      `}</style>
+
+      {/* Messages Area */}
+      <div style={{
+        flex: 1,
+        overflowY: "auto",
+        padding: "20px",
+        maxWidth: "800px",
+        width: "100%",
+        margin: "0 auto"
+      }}>
+        {messages.length === 0 ? (
+          <div style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+            textAlign: "center",
+            color: "#666"
+          }}>
+            <h1 style={{ fontSize: "32px", fontWeight: "600", marginBottom: "16px" }}>
+              SlideStorm
+            </h1>
+            <p style={{ fontSize: "16px", marginBottom: "32px" }}>
+              Create beautiful slides with AI
+            </p>
+            <div style={{ fontSize: "14px", color: "#999" }}>
+              <p>Start by describing what slides you'd like to create</p>
+              {pdfFile && (
+                <p style={{ marginTop: "8px", color: "#4caf50" }}>
+                  ✓ Template: {pdfFile.name}
+                </p>
+              )}
+            </div>
+          </div>
+        ) : (
+          <>
+            {messages.map((msg) => (
               <div
-                ref={fullscreenContainerRef}
+                key={msg.id}
                 style={{
-                  background: isFullscreen ? "#000" : "#f5f5f5",
-                  borderRadius: isFullscreen ? "0" : "8px",
-                  padding: isFullscreen ? "0" : "20px",
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  width: isFullscreen ? "100vw" : "auto",
-                  height: isFullscreen ? "100vh" : "auto"
+                  marginBottom: "24px",
+                  justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start'
                 }}
               >
                 <div style={{
-                  width: "100%",
-                  maxWidth: isFullscreen ? "none" : "1200px",
-                  aspectRatio: "16 / 9",
-                  position: "relative",
-                  height: isFullscreen ? "100%" : "auto"
+                  maxWidth: "70%",
+                  background: msg.role === 'user' ? '#f3f4f6' : 'transparent',
+                  padding: msg.role === 'user' ? "12px 16px" : "12px 0",
+                  borderRadius: "18px",
+                  fontSize: "15px",
+                  lineHeight: "1.5",
+                  color: "#1f2937"
                 }}>
-                  <iframe
-                    ref={iframeRef}
-                    srcDoc={FRAME_RUNNER_HTML}
-                    style={{
-                      position: "absolute",
-                      top: 0,
-                      left: 0,
-                      width: "100%",
-                      height: "100%",
-                      border: "none",
-                      borderRadius: isFullscreen ? "0" : "8px",
-                      background: "white"
-                    }}
-                    sandbox="allow-scripts allow-same-origin"
-                    title="TSX Frame Renderer"
-                  />
+                  {msg.role === 'assistant' && (
+                    <div style={{
+                      fontWeight: "600",
+                      marginBottom: "8px",
+                      fontSize: "14px",
+                      color: "#10a37f"
+                    }}>
+                      SlideStorm
+                    </div>
+                  )}
+                  {msg.isGenerating ? (
+                    <div>
+                      <span className="typing-dot"></span>
+                      <span className="typing-dot"></span>
+                      <span className="typing-dot"></span>
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ whiteSpace: "pre-wrap" }}>{msg.content}</div>
+                      {msg.hasSlides && tsxFileContent && <SlidesViewer />}
+                    </>
+                  )}
                 </div>
               </div>
+            ))}
+            <div ref={messagesEndRef} />
+          </>
+        )}
+      </div>
 
-              {/* Debug info */}
-              <div style={{
-                padding: "10px",
-                background: "#e3f2fd",
-                color: "#1976d2",
+      {/* Input Area */}
+      <div style={{
+        borderTop: "1px solid #e5e7eb",
+        padding: "20px",
+        background: "#ffffff"
+      }}>
+        <div style={{
+          maxWidth: "800px",
+          margin: "0 auto"
+        }}>
+          {/* Template Upload */}
+          {!pdfFile && (
+            <div style={{ marginBottom: "12px" }}>
+              <label style={{
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "8px 16px",
+                background: "#f3f4f6",
                 borderRadius: "8px",
-                marginTop: "10px",
-                fontSize: "12px",
-                fontFamily: "monospace"
+                fontSize: "14px",
+                cursor: "pointer",
+                color: "#374151"
               }}>
-                <div>Iframe Ready: {iframeReady ? '✓' : '⏳'}</div>
-                <div>TSX Content: {tsxFileContent ? `✓ (${tsxFileContent.length} chars)` : '✗'}</div>
-                <div>Iframe: Embedded (srcDoc)</div>
-              </div>
-
-              {/* Error display */}
-              {renderError && (
-                <div style={{
-                  padding: "10px",
-                  background: "#ffebee",
-                  color: "#c62828",
-                  borderRadius: "8px",
-                  marginTop: "10px",
-                  fontFamily: "monospace",
-                  fontSize: "12px",
-                  whiteSpace: "pre-wrap"
-                }}>
-                  {renderError}
-                </div>
-              )}
+                <span style={{ marginRight: "8px" }}>📎</span>
+                {isConverting ? 'Converting...' : 'Add template (optional)'}
+                <input
+                  type="file"
+                  accept="application/pdf,image/png,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                  onChange={handleFileSelect}
+                  disabled={isConverting}
+                  style={{ display: "none" }}
+                />
+              </label>
             </div>
-        )}
-      </div>
-    );
-  }
-
-  // Preparing request state
-  if (isSending) {
-    return (
-      <div style={{ padding: "20px", maxWidth: "600px" }}>
-        <div style={{
-          padding: "40px",
-          textAlign: "center",
-          background: "#e3f2fd",
-          borderRadius: "12px",
-        }}>
-          <div style={{
-            width: "50px",
-            height: "50px",
-            borderLeft: "4px solid #2196f3",
-            borderRight: "4px solid #2196f3",
-            borderBottom: "4px solid #2196f3",
-            borderTop: "4px solid transparent",
-            borderRadius: "50%",
-            margin: "0 auto 20px",
-            animation: "spin 1s linear infinite"
-          }}></div>
-          <p style={{ fontSize: "18px", fontWeight: "bold", margin: "0 0 10px 0" }}>
-            Preparing request...
-          </p>
-          {pngFiles.length > 0 && (
-            <p style={{ fontSize: "14px", color: "#666" }}>
-              Uploading {pngFiles.length} template page{pngFiles.length > 1 ? 's' : ''}...
-            </p>
           )}
+
+          {pdfFile && (
+            <div style={{
+              marginBottom: "12px",
+              padding: "8px 12px",
+              background: "#f0fdf4",
+              borderRadius: "8px",
+              fontSize: "13px",
+              color: "#15803d",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between"
+            }}>
+              <span>✓ {pdfFile.name} ({pngFiles.length} page{pngFiles.length > 1 ? 's' : ''})</span>
+              <button
+                onClick={() => {
+                  setPdfFile(null);
+                  setPngFiles([]);
+                }}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "16px",
+                  padding: "0 4px"
+                }}
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          {error && (
+            <div style={{
+              marginBottom: "12px",
+              padding: "12px",
+              background: "#fef2f2",
+              borderRadius: "8px",
+              fontSize: "13px",
+              color: "#991b1b"
+            }}>
+              {error}
+            </div>
+          )}
+
+          {/* Input Box */}
+          <div style={{
+            display: "flex",
+            gap: "8px",
+            alignItems: "flex-end"
+          }}>
+            <textarea
+              value={inputValue}
+              onChange={(e) => setInputValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey && canSend) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder="Describe the slides you want to create..."
+              style={{
+                flex: 1,
+                padding: "12px 16px",
+                border: "1px solid #d1d5db",
+                borderRadius: "12px",
+                fontSize: "15px",
+                fontFamily: "inherit",
+                resize: "none",
+                minHeight: "52px",
+                maxHeight: "200px",
+                outline: "none",
+                boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)"
+              }}
+              rows={1}
+            />
+            <button
+              onClick={handleSend}
+              disabled={!canSend}
+              style={{
+                padding: "12px 20px",
+                background: canSend ? "#10a37f" : "#d1d5db",
+                color: "white",
+                border: "none",
+                borderRadius: "12px",
+                fontSize: "15px",
+                fontWeight: "500",
+                cursor: canSend ? "pointer" : "not-allowed",
+                transition: "background 0.2s",
+                minWidth: "80px"
+              }}
+            >
+              {isSending ? '...' : 'Send'}
+            </button>
+          </div>
         </div>
-        <style>{`
-          @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-          }
-        `}</style>
       </div>
-    );
-  }
-
-  const canSend = slideSubjectAndContent.trim();
-
-  // Main form
-  return (
-    <div style={{ padding: "20px", maxWidth: "600px" }}>
-      <h2>Create Slides</h2>
-
-      {error && (
-        <div style={{
-          padding: "15px",
-          marginTop: "20px",
-          background: "#ffebee",
-          color: "#c62828",
-          borderRadius: "8px",
-          border: "1px solid #ef5350"
-        }}>
-          {error}
-        </div>
-      )}
-
-      <div style={{ marginTop: "20px" }}>
-        <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-          Slide Subject and Content
-        </label>
-        <textarea
-          value={slideSubjectAndContent}
-          onChange={(e) => setSlideSubjectAndContent(e.target.value)}
-          placeholder="Enter the subject and content for your slides..."
-          style={{
-            width: "100%",
-            minHeight: "100px",
-            padding: "10px",
-            border: "2px solid #ddd",
-            borderRadius: "8px",
-            fontSize: "14px",
-            fontFamily: "inherit",
-            resize: "vertical"
-          }}
-        />
-      </div>
-
-      <div style={{ marginTop: "20px" }}>
-        <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-          Template (Optional)
-        </label>
-        <input
-          type="file"
-          accept="application/pdf,image/png,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
-          onChange={handleFileSelect}
-          disabled={isConverting}
-          style={{
-            padding: "10px",
-            border: "2px solid #ddd",
-            borderRadius: "8px",
-            width: "100%"
-          }}
-        />
-        {isConverting && (
-          <p style={{ marginTop: "10px", fontSize: "14px", color: "#2196f3" }}>
-            Converting template to images...
-          </p>
-        )}
-        {conversionComplete && pdfFile && (
-          <p style={{ marginTop: "10px", fontSize: "14px", color: "#4caf50" }}>
-            ✓ {pdfFile.name} - {pngFiles.length} page{pngFiles.length > 1 ? 's' : ''} ready
-          </p>
-        )}
-      </div>
-
-      <button
-        onClick={handleSend}
-        disabled={!canSend}
-        style={{
-          marginTop: "20px",
-          padding: "12px 24px",
-          background: canSend ? "#2196f3" : "#ccc",
-          color: "white",
-          border: "none",
-          borderRadius: "8px",
-          fontSize: "16px",
-          fontWeight: "bold",
-          cursor: canSend ? "pointer" : "not-allowed",
-          width: "100%"
-        }}
-      >
-        Generate Slides
-      </button>
     </div>
   );
 }
