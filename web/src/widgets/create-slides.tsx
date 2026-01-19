@@ -425,16 +425,36 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
             // Force assign all cached icons, even if the property exists on window
             console.log('[CodeExec] Force assigning', Object.keys(window.__componentCache__).length, 'cached components to window');
             let forceAssigned = 0;
+
+            // Same protected properties list as during pre-caching
+            const protectedProps = [
+              'Infinity', 'NaN', 'undefined', 'eval', 'isFinite', 'isNaN', 'parseFloat', 'parseInt',
+              'decodeURI', 'decodeURIComponent', 'encodeURI', 'encodeURIComponent',
+              'Object', 'Function', 'Boolean', 'Symbol', 'Error', 'Number', 'BigInt', 'Math', 'Date',
+              'String', 'RegExp', 'Array', 'Int8Array', 'Uint8Array', 'Uint8ClampedArray',
+              'Int16Array', 'Uint16Array', 'Int32Array', 'Uint32Array', 'Float32Array', 'Float64Array',
+              'Map', 'Set', 'WeakMap', 'WeakSet', 'ArrayBuffer', 'DataView', 'JSON', 'Promise',
+              'Generator', 'Proxy', 'Reflect',
+              'Intl', 'WebAssembly', 'console', 'performance', 'navigator', 'location', 'history',
+              'document', 'window', 'self', 'top', 'parent', 'frames', 'localStorage', 'sessionStorage',
+              'indexedDB', 'crypto', 'fetch', 'XMLHttpRequest', 'URL', 'URLSearchParams', 'Blob',
+              'File', 'FileReader', 'FormData', 'Headers', 'Request', 'Response', 'Image',
+              'Audio', 'Video', 'Element', 'Node', 'Event', 'MouseEvent', 'KeyboardEvent',
+              'CustomEvent', 'MessageEvent', 'ErrorEvent', 'AnimationEvent', 'TransitionEvent'
+            ];
+
             Object.keys(window.__componentCache__).forEach(key => {
               // Skip base React components that should not be overwritten
               const skipKeys = ['React', 'useState', 'useEffect', 'useMemo', 'useCallback', 'useFile', 'Button', 'Card', 'CardHeader', 'CardTitle', 'CardContent', 'Recharts'];
-              if (!skipKeys.includes(key)) {
-                try {
-                  window[key] = window.__componentCache__[key];
-                  forceAssigned++;
-                } catch (e) {
-                  console.warn('[CodeExec] Could not force assign:', key, e.message);
-                }
+              if (skipKeys.includes(key) || protectedProps.includes(key)) {
+                return; // Skip protected properties
+              }
+
+              try {
+                window[key] = window.__componentCache__[key];
+                forceAssigned++;
+              } catch (e) {
+                console.warn('[CodeExec] Could not force assign:', key, e.message);
               }
             });
             console.log('[CodeExec] Force assigned', forceAssigned, 'components');
