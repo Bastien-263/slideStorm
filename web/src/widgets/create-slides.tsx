@@ -185,6 +185,10 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
       const allLucideIcons = ${JSON.stringify(LUCIDE_ICON_NAMES)};
 
       console.log('[Lucide] Pre-caching', allLucideIcons.length, 'icons');
+      let successCount = 0;
+      let skipCount = 0;
+      let errorCount = 0;
+
       allLucideIcons.forEach(iconName => {
         const icon = createLucideIcon(iconName);
         window.__componentCache__[iconName] = icon;
@@ -193,12 +197,21 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
         try {
           if (!(iconName in window) || window[iconName] === undefined) {
             window[iconName] = icon;
+            successCount++;
+          } else {
+            console.log('[Lucide] Skipping "' + iconName + '" - already exists on window:', typeof window[iconName]);
+            skipCount++;
           }
         } catch (e) {
           // Ignore read-only properties like 'Infinity'
-          console.warn(\`[Lucide] Could not assign icon '\${iconName}' to window (reserved property)\`);
+          console.warn('[Lucide] Could not assign icon "' + iconName + '" to window (reserved property):', e.message);
+          errorCount++;
         }
       });
+
+      console.log('[Lucide] Pre-cache complete: ' + successCount + ' assigned, ' + skipCount + ' skipped, ' + errorCount + ' errors');
+      console.log('[Lucide] Checking Globe in cache:', !!window.__componentCache__.Globe);
+      console.log('[Lucide] Checking Globe on window:', typeof window.Globe, window.Globe);
     }
 
     // Universal component resolver - similar to Dust's scope injection
@@ -375,28 +388,40 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
 
             // Pre-resolve all potential components and expose them globally
             // This ensures they're available when the code executes
+            console.log('[CodeExec] Found potential components:', Array.from(potentialComponents));
             potentialComponents.forEach(name => {
               if (!window[name]) {
                 const resolved = window.__resolveComponent__(name);
                 if (resolved) {
                   window[name] = resolved;
+                  console.log('[CodeExec] Resolved and assigned:', name);
+                } else {
+                  console.warn('[CodeExec] Could not resolve:', name);
                 }
+              } else {
+                console.log('[CodeExec] Component already exists on window:', name, typeof window[name]);
               }
             });
 
             // Also expose all cached components globally
             // Force assign all cached icons, even if the property exists on window
+            console.log('[CodeExec] Force assigning', Object.keys(window.__componentCache__).length, 'cached components to window');
+            let forceAssigned = 0;
             Object.keys(window.__componentCache__).forEach(key => {
               // Skip base React components that should not be overwritten
               const skipKeys = ['React', 'useState', 'useEffect', 'useMemo', 'useCallback', 'useFile', 'Button', 'Card', 'CardHeader', 'CardTitle', 'CardContent', 'Recharts'];
               if (!skipKeys.includes(key)) {
                 try {
                   window[key] = window.__componentCache__[key];
+                  forceAssigned++;
                 } catch (e) {
-                  // Ignore read-only properties
+                  console.warn('[CodeExec] Could not force assign:', key, e.message);
                 }
               }
             });
+            console.log('[CodeExec] Force assigned', forceAssigned, 'components');
+            console.log('[CodeExec] Final check - Globe on window:', typeof window.Globe, !!window.Globe);
+            console.log('[CodeExec] Final check - Globe in cache:', !!window.__componentCache__.Globe);
 
             // Create a Proxy that intercepts property access using the unified cache
             // This mirrors Dust's approach of checking a centralized component scope
