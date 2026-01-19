@@ -593,7 +593,7 @@ const FRAME_RUNNER_HTML = `<!DOCTYPE html>
 </html>`;
 
 function PdfUploader() {
-  const [message, setMessage] = useState("");
+  const [slideSubjectAndContent, setSlideSubjectAndContent] = useState("");
   const [pdfFile, setPdfFile] = useState<File | null>(null);
   const [pngFiles, setPngFiles] = useState<File[]>([]);
   const [isConverting, setIsConverting] = useState(false);
@@ -873,7 +873,7 @@ function PdfUploader() {
   };
 
   const handleSend = async () => {
-    if (!message.trim() || !conversionComplete) return;
+    if (!slideSubjectAndContent.trim()) return;
 
     setIsSending(true);
 
@@ -926,7 +926,7 @@ function PdfUploader() {
       // Stream agent response
       setIsReceivingResponse(true);
       setIsSending(false);
-      await streamAgentResponse(convId, message);
+      await streamAgentResponse(convId, slideSubjectAndContent);
     } catch (error) {
       console.error('Error:', error);
       setError(error instanceof Error ? error.message : 'Unknown error');
@@ -983,9 +983,11 @@ function PdfUploader() {
         }}>
           <div style={{ fontSize: "48px", marginBottom: "15px" }}>✅</div>
           <h2 style={{ margin: "0 0 10px 0" }}>Slides generated successfully!</h2>
-          <p style={{ margin: "0", opacity: "0.9" }}>
-            {pdfFile?.name} - {pngFiles.length} page{pngFiles.length > 1 ? 's' : ''} processed
-          </p>
+          {pdfFile && (
+            <p style={{ margin: "0", opacity: "0.9" }}>
+              Template: {pdfFile.name} - {pngFiles.length} page{pngFiles.length > 1 ? 's' : ''} processed
+            </p>
+          )}
         </div>
         {tsxFileContent && (
             <div style={{ marginTop: "20px" }}>
@@ -1102,7 +1104,7 @@ function PdfUploader() {
     );
   }
 
-  // Sending to Dust state
+  // Preparing request state
   if (isSending) {
     return (
       <div style={{ padding: "20px", maxWidth: "600px" }}>
@@ -1124,11 +1126,13 @@ function PdfUploader() {
             animation: "spin 1s linear infinite"
           }}></div>
           <p style={{ fontSize: "18px", fontWeight: "bold", margin: "0 0 10px 0" }}>
-            Sending to Dust...
+            Preparing request...
           </p>
-          <p style={{ fontSize: "14px", color: "#666" }}>
-            Uploading {pngFiles.length} page{pngFiles.length > 1 ? 's' : ''}...
-          </p>
+          {pngFiles.length > 0 && (
+            <p style={{ fontSize: "14px", color: "#666" }}>
+              Uploading {pngFiles.length} template page{pngFiles.length > 1 ? 's' : ''}...
+            </p>
+          )}
         </div>
         <style>{`
           @keyframes spin {
@@ -1140,12 +1144,12 @@ function PdfUploader() {
     );
   }
 
-  const canSend = message.trim() && conversionComplete;
+  const canSend = slideSubjectAndContent.trim();
 
   // Main form
   return (
     <div style={{ padding: "20px", maxWidth: "600px" }}>
-      <h2>Send PDF to Dust</h2>
+      <h2>Create Slides</h2>
 
       {error && (
         <div style={{
@@ -1162,12 +1166,12 @@ function PdfUploader() {
 
       <div style={{ marginTop: "20px" }}>
         <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-          Message
+          Slide Subject and Content
         </label>
         <textarea
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="Enter your message..."
+          value={slideSubjectAndContent}
+          onChange={(e) => setSlideSubjectAndContent(e.target.value)}
+          placeholder="Enter the subject and content for your slides..."
           style={{
             width: "100%",
             minHeight: "100px",
@@ -1183,7 +1187,7 @@ function PdfUploader() {
 
       <div style={{ marginTop: "20px" }}>
         <label style={{ display: "block", marginBottom: "8px", fontWeight: "bold" }}>
-          PDF, PNG, or PowerPoint File
+          Template (Optional)
         </label>
         <input
           type="file"
@@ -1199,7 +1203,7 @@ function PdfUploader() {
         />
         {isConverting && (
           <p style={{ marginTop: "10px", fontSize: "14px", color: "#2196f3" }}>
-            Converting PDF to PNG...
+            Converting template to images...
           </p>
         )}
         {conversionComplete && pdfFile && (
@@ -1225,7 +1229,7 @@ function PdfUploader() {
           width: "100%"
         }}
       >
-        Send to Dust
+        Generate Slides
       </button>
     </div>
   );
