@@ -4,11 +4,198 @@ import { mountWidget } from "skybridge/web";
 import * as pdfjsLib from "pdfjs-dist";
 import React from 'react';
 import ReactDOM from 'react-dom/client';
-import Frame, { FrameContextConsumer } from 'react-frame-component';
+import Frame, { FrameContext } from 'react-frame-component';
 import * as LucideIcons from 'lucide-react';
 
 // Configure PDF.js worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://unpkg.com/pdfjs-dist@5.4.530/build/pdf.worker.min.mjs';
+
+function IframeContent({ tsxFileContent, setRenderError, setIframeReady }: {
+  tsxFileContent: string;
+  setRenderError: (error: string | null) => void;
+  setIframeReady: (ready: boolean) => void;
+}) {
+  const rootRef = useRef<any>(null);
+  const [frameContext, setFrameContext] = useState<{ document: Document; window: Window } | null>(null);
+  const frameContextRef = useRef<{ document: Document; window: Window } | null>(null);
+
+  useEffect(() => {
+    if (!frameContext) return;
+
+    const { document: iframeDoc, window: iframeWindow } = frameContext;
+    if (!iframeDoc || !iframeWindow) return;
+
+    try {
+      // Inject React and ReactDOM into iframe
+      (iframeWindow as any).React = React;
+      (iframeWindow as any).ReactDOM = ReactDOM;
+
+      // Liste des propriétés protégées
+      const protectedProps = new Set([
+        'Infinity', 'NaN', 'undefined', 'eval', 'isFinite', 'isNaN', 'parseFloat', 'parseInt',
+        'Object', 'Function', 'Boolean', 'Symbol', 'Error', 'Number', 'Date',
+        'String', 'RegExp', 'Array', 'Map', 'Set', 'Promise',
+        'Math', 'JSON', 'console', 'window', 'document', 'navigator', 'location'
+      ]);
+
+      // Inject Lucide icons safely
+      Object.entries(LucideIcons).forEach(([name, Component]) => {
+        if (!protectedProps.has(name)) {
+          try {
+            (iframeWindow as any)[name] = Component;
+          } catch (e) {
+            console.warn(`Could not assign icon: ${name}`);
+          }
+        }
+      });
+
+      // Inject base hooks
+      (iframeWindow as any).useState = React.useState;
+      (iframeWindow as any).useEffect = React.useEffect;
+      (iframeWindow as any).useMemo = React.useMemo;
+      (iframeWindow as any).useCallback = React.useCallback;
+
+      // Simple components
+      (iframeWindow as any).Button = ({ children, variant, size, disabled, className = '', onClick, ...props }: any) => {
+        const baseClasses = 'inline-flex items-center justify-center transition-all';
+        const variantClasses = variant === 'outline' ? 'border border-current' : '';
+        const sizeClasses = size === 'icon' ? 'p-2' : size === 'lg' ? 'px-6 py-3' : 'px-4 py-2';
+        const disabledClasses = disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer';
+        return React.createElement('button', {
+          onClick: !disabled ? onClick : undefined,
+          disabled,
+          className: `${baseClasses} ${variantClasses} ${sizeClasses} ${disabledClasses} ${className}`,
+          ...props
+        }, children);
+      };
+
+      (iframeWindow as any).Card = ({ children, className = '', ...props }: any) => {
+        return React.createElement('div', {
+          className: `bg-white rounded-lg shadow-md ${className}`,
+          ...props
+        }, children);
+      };
+
+      (iframeWindow as any).CardHeader = ({ children, className = '', ...props }: any) => {
+        return React.createElement('div', {
+          className: `p-6 ${className}`,
+          ...props
+        }, children);
+      };
+
+      (iframeWindow as any).CardTitle = ({ children, className = '', ...props }: any) => {
+        return React.createElement('h3', {
+          className: `text-2xl font-bold ${className}`,
+          ...props
+        }, children);
+      };
+
+      (iframeWindow as any).CardContent = ({ children, className = '', ...props }: any) => {
+        return React.createElement('div', {
+          className: `p-6 pt-0 ${className}`,
+          ...props
+        }, children);
+      };
+
+      // Execute TSX code
+      let code = tsxFileContent;
+
+      // Remove imports and exports
+      code = code.replace(/^import\s+.*?from\s+["'].*?["'];?\s*$/gm, '');
+      code = code.replace(/^export\s+default\s+/gm, '').replace(/^export\s+(const|function|class)\s+/gm, '$1 ');
+
+      // Transform with Babel to remove TypeScript types and transform JSX
+      const Babel = (iframeWindow as any).Babel;
+      if (!Babel) {
+        throw new Error('Babel not loaded in iframe');
+      }
+
+      const transformedCode = Babel.transform(code, {
+        presets: ['typescript', 'react'],
+        filename: 'component.tsx'
+      }).code;
+
+      // Find component name from ORIGINAL code (before transformation)
+      const componentMatch = code.match(/(?:const|function)\s+(\w+)\s*=?\s*(?:\(\)|=>|\()/);
+      const componentName = componentMatch ? componentMatch[1] : null;
+
+      if (componentName) {
+        // Create component factory with ALL Lucide icons
+        const lucideIconNames = Object.keys(LucideIcons);
+        const lucideIconComponents = Object.values(LucideIcons);
+
+        const componentFactory = new Function(
+          'React', 'useState', 'useEffect', 'useMemo', 'useCallback',
+          ...lucideIconNames,
+          'Button', 'Card', 'CardHeader', 'CardTitle', 'CardContent',
+          `${transformedCode}\nreturn ${componentName};`
+        );
+
+        const Component = componentFactory(
+          React, React.useState, React.useEffect, React.useMemo, React.useCallback,
+          ...lucideIconComponents,
+          (iframeWindow as any).Button,
+          (iframeWindow as any).Card,
+          (iframeWindow as any).CardHeader,
+          (iframeWindow as any).CardTitle,
+          (iframeWindow as any).CardContent
+        );
+
+        // Render component
+        const rootElement = iframeDoc.getElementById('root');
+        if (rootElement) {
+          const IframeReactDOM = (iframeWindow as any).ReactDOM;
+
+          // Reuse existing root or create a new one
+          if (!rootRef.current) {
+            rootRef.current = IframeReactDOM.createRoot(rootElement);
+          }
+
+          rootRef.current.render(React.createElement(Component));
+        }
+
+        setRenderError(null);
+        setIframeReady(true);
+      }
+    } catch (error) {
+      console.error('Render error:', error);
+      setRenderError(error instanceof Error ? error.message : String(error));
+    }
+
+    // Cleanup function to unmount on component unmount
+    return () => {
+      if (rootRef.current) {
+        // Use setTimeout to avoid synchronous unmount during render
+        setTimeout(() => {
+          try {
+            if (rootRef.current) {
+              rootRef.current.unmount();
+              rootRef.current = null;
+            }
+          } catch (e) {
+            // Ignore unmount errors
+          }
+        }, 0);
+      }
+    };
+  }, [tsxFileContent, setRenderError, setIframeReady, frameContext]);
+
+  return (
+    <FrameContext.Consumer>
+      {({ document: iframeDoc, window: iframeWindow }) => {
+        // Store in ref to avoid setState during render
+        if (iframeDoc && iframeWindow && iframeDoc !== frameContextRef.current?.document) {
+          frameContextRef.current = { document: iframeDoc, window: iframeWindow };
+          // Schedule state update for next tick
+          Promise.resolve().then(() => {
+            setFrameContext({ document: iframeDoc, window: iframeWindow });
+          });
+        }
+        return null;
+      }}
+    </FrameContext.Consumer>
+  );
+}
 
 function PdfUploader() {
   const [slideSubjectAndContent, setSlideSubjectAndContent] = useState("");
@@ -25,6 +212,7 @@ function PdfUploader() {
   const [renderError, setRenderError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [iframeReady, setIframeReady] = useState(false);
   const fullscreenContainerRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<any>(null);
 
@@ -116,8 +304,21 @@ function PdfUploader() {
       });
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        const errorMessage = errorData.error || `HTTP error! status: ${response.status}`;
-        throw new Error(`Upload failed: ${errorMessage}`);
+        let errorMessage = 'Upload failed';
+
+        if (typeof errorData.error === 'string') {
+          if (errorData.error.includes('socket hang up')) {
+            errorMessage = 'File too large or connection timeout. Please try with a smaller or simpler PDF.';
+          } else if (errorData.error.includes('Failed resizing image')) {
+            errorMessage = 'Image processing failed. The file might be too complex or large.';
+          } else {
+            errorMessage = errorData.error;
+          }
+        } else if (errorData.error?.message) {
+          errorMessage = errorData.error.message;
+        }
+
+        throw new Error(errorMessage);
       }
       return response.json();
     }
@@ -129,8 +330,15 @@ function PdfUploader() {
     });
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-      const errorMessage = errorData.error || `HTTP error! status: ${response.status}`;
-      throw new Error(`API call failed: ${errorMessage}`);
+      let errorMessage = 'API call failed';
+
+      if (typeof errorData.error === 'string') {
+        errorMessage = errorData.error;
+      } else if (errorData.error?.message) {
+        errorMessage = errorData.error.message;
+      }
+
+      throw new Error(errorMessage);
     }
     return returnText ? response.text() : response.json();
   };
@@ -148,8 +356,8 @@ function PdfUploader() {
 
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
-        // Reduced scale from 2 to 1.5 to reduce file size while maintaining quality
-        const viewport = page.getViewport({ scale: 1.5 });
+        // Reduced scale to 1.0 for much smaller file sizes
+        const viewport = page.getViewport({ scale: 1.0 });
 
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
@@ -159,21 +367,25 @@ function PdfUploader() {
         if (context) {
           await page.render({ canvasContext: context, viewport } as any).promise;
 
-          // Try JPEG first with quality 0.85 for much smaller file sizes
-          const jpegBlob = await new Promise<Blob>((resolve) => {
-            canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', 0.85);
-          });
+          // Progressive compression to ensure file is under 1MB
+          const maxSize = 1 * 1024 * 1024; // 1MB max (safer for Dust API)
+          let quality = 0.6;
+          let finalBlob: Blob;
 
-          // If JPEG is too large (> 8MB), use PNG instead
-          const useJpeg = jpegBlob.size < 8 * 1024 * 1024;
+          do {
+            finalBlob = await new Promise<Blob>((resolve) => {
+              canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', quality);
+            });
 
-          const finalBlob = useJpeg ? jpegBlob : await new Promise<Blob>((resolve) => {
-            canvas.toBlob((blob) => resolve(blob!), 'image/png');
-          });
+            // If still too large, reduce quality by 0.1
+            if (finalBlob.size > maxSize && quality > 0.2) {
+              quality -= 0.1;
+            } else {
+              break;
+            }
+          } while (quality >= 0.2);
 
-          const extension = useJpeg ? 'jpg' : 'png';
-          const mimeType = useJpeg ? 'image/jpeg' : 'image/png';
-          const imageFile = new File([finalBlob], `${file.name.replace('.pdf', '')}_page_${pageNum}.${extension}`, { type: mimeType });
+          const imageFile = new File([finalBlob], `${file.name.replace('.pdf', '')}_page_${pageNum}.jpg`, { type: 'image/jpeg' });
 
           pngFilesArray.push(imageFile);
         }
@@ -182,7 +394,8 @@ function PdfUploader() {
       setPngFiles(pngFilesArray);
       setConversionComplete(true);
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Unknown error');
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      setError(`Failed to convert PDF: ${errorMsg}. Please try a different file.`);
     } finally {
       setIsConverting(false);
     }
@@ -268,7 +481,8 @@ function PdfUploader() {
       setIsReceivingResponse(false);
       setSendComplete(true);
     } catch (error) {
-      setError(error instanceof Error ? error.message : 'Stream error');
+      const errorMsg = error instanceof Error ? error.message : 'Stream error';
+      setError(`Failed to generate slides: ${errorMsg}`);
       setIsReceivingResponse(false);
     }
   };
@@ -352,7 +566,8 @@ function PdfUploader() {
       await streamAgentResponse(convId, slideSubjectAndContent);
     } catch (error) {
       console.error('Error:', error);
-      setError(error instanceof Error ? error.message : 'Unknown error');
+      const errorMsg = error instanceof Error ? error.message : 'Unknown error';
+      setError(errorMsg);
     } finally {
       setIsSending(false);
     }
@@ -422,12 +637,30 @@ function PdfUploader() {
           flexWrap: "wrap"
         }}>
           <div style={{
-            fontSize: "12px",
+            fontSize: "11px",
             color: "#8e8ea0",
-            fontFamily: "monospace"
+            fontFamily: "monospace",
+            display: "flex",
+            flexDirection: "column",
+            gap: "4px"
           }}>
             {conversationId && (
-              <span>Conversation ID: {conversationId}</span>
+              <>
+                <span>ID: {conversationId}</span>
+                <a
+                  href={`https://dust.tt/w/${workspaceId}/assistant/${conversationId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    color: "#10a37f",
+                    textDecoration: "none"
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.textDecoration = "underline"}
+                  onMouseLeave={(e) => e.currentTarget.style.textDecoration = "none"}
+                >
+                  dust.tt/w/{workspaceId}/assistant/{conversationId}
+                </a>
+              </>
             )}
           </div>
           <div style={{
@@ -483,37 +716,6 @@ function PdfUploader() {
               <span>📋</span>
               <span>Copy Code</span>
             </button>
-            {conversationId && (
-              <button
-                onClick={() => {
-                  const dustUrl = `https://dust.tt/w/${workspaceId}/assistant/${conversationId}`;
-                  navigator.clipboard.writeText(dustUrl);
-                  const btn = document.activeElement as HTMLButtonElement;
-                  const originalText = btn.innerHTML;
-                  btn.innerHTML = '<span>✓</span><span>Copied!</span>';
-                  setTimeout(() => {
-                    btn.innerHTML = originalText;
-                  }, 2000);
-                }}
-                style={{
-                  padding: "10px 16px",
-                  background: "#fff",
-                  color: "#202123",
-                  border: "1px solid #d9d9e3",
-                  borderRadius: "8px",
-                  fontSize: "14px",
-                  cursor: "pointer",
-                  fontWeight: "500",
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  transition: "all 0.2s"
-                }}
-              >
-                <span>🔗</span>
-                <span>Dust URL</span>
-              </button>
-            )}
           </div>
         </div>
 
@@ -594,150 +796,11 @@ function PdfUploader() {
                   </html>
                 `}
               >
-                <FrameContextConsumer>
-                  {({ document: iframeDoc, window: iframeWindow }) => {
-                    if (!iframeDoc || !iframeWindow) return null;
-
-                    try {
-                      // Inject React and ReactDOM into iframe
-                      (iframeWindow as any).React = React;
-                      (iframeWindow as any).ReactDOM = ReactDOM;
-
-                      // Liste des propriétés protégées
-                      const protectedProps = new Set([
-                        'Infinity', 'NaN', 'undefined', 'eval', 'isFinite', 'isNaN', 'parseFloat', 'parseInt',
-                        'Object', 'Function', 'Boolean', 'Symbol', 'Error', 'Number', 'Date',
-                        'String', 'RegExp', 'Array', 'Map', 'Set', 'Promise',
-                        'Math', 'JSON', 'console', 'window', 'document', 'navigator', 'location'
-                      ]);
-
-                      // Inject Lucide icons safely
-                      Object.entries(LucideIcons).forEach(([name, Component]) => {
-                        if (!protectedProps.has(name)) {
-                          try {
-                            (iframeWindow as any)[name] = Component;
-                          } catch (e) {
-                            console.warn(`Could not assign icon: ${name}`);
-                          }
-                        }
-                      });
-
-                      // Inject base hooks
-                      (iframeWindow as any).useState = React.useState;
-                      (iframeWindow as any).useEffect = React.useEffect;
-                      (iframeWindow as any).useMemo = React.useMemo;
-                      (iframeWindow as any).useCallback = React.useCallback;
-
-                      // Simple components
-                      (iframeWindow as any).Button = ({ children, variant, size, disabled, className = '', onClick, ...props }: any) => {
-                        const baseClasses = 'inline-flex items-center justify-center transition-all';
-                        const variantClasses = variant === 'outline' ? 'border border-current' : '';
-                        const sizeClasses = size === 'icon' ? 'p-2' : size === 'lg' ? 'px-6 py-3' : 'px-4 py-2';
-                        const disabledClasses = disabled ? 'opacity-30 cursor-not-allowed' : 'cursor-pointer';
-                        return React.createElement('button', {
-                          onClick: !disabled ? onClick : undefined,
-                          disabled,
-                          className: `${baseClasses} ${variantClasses} ${sizeClasses} ${disabledClasses} ${className}`,
-                          ...props
-                        }, children);
-                      };
-
-                      (iframeWindow as any).Card = ({ children, className = '', ...props }: any) => {
-                        return React.createElement('div', {
-                          className: `bg-white rounded-lg shadow-md ${className}`,
-                          ...props
-                        }, children);
-                      };
-
-                      (iframeWindow as any).CardHeader = ({ children, className = '', ...props }: any) => {
-                        return React.createElement('div', {
-                          className: `p-6 ${className}`,
-                          ...props
-                        }, children);
-                      };
-
-                      (iframeWindow as any).CardTitle = ({ children, className = '', ...props }: any) => {
-                        return React.createElement('h3', {
-                          className: `text-2xl font-bold ${className}`,
-                          ...props
-                        }, children);
-                      };
-
-                      (iframeWindow as any).CardContent = ({ children, className = '', ...props }: any) => {
-                        return React.createElement('div', {
-                          className: `p-6 pt-0 ${className}`,
-                          ...props
-                        }, children);
-                      };
-
-                      // Execute TSX code
-                      let code = tsxFileContent;
-
-                      // Remove imports and exports
-                      code = code.replace(/^import\s+.*?from\s+["'].*?["'];?\s*$/gm, '');
-                      code = code.replace(/^export\s+default\s+/gm, '').replace(/^export\s+(const|function|class)\s+/gm, '$1 ');
-
-                      // ✅ Transform with Babel to remove TypeScript types and transform JSX
-                      const Babel = (iframeWindow as any).Babel;
-                      if (!Babel) {
-                        throw new Error('Babel not loaded in iframe');
-                      }
-
-                      const transformedCode = Babel.transform(code, {
-                        presets: ['typescript', 'react'],
-                        filename: 'component.tsx'
-                      }).code;
-
-                      // Find component name from ORIGINAL code (before transformation)
-                      const componentMatch = code.match(/(?:const|function)\s+(\w+)\s*=?\s*(?:\(\)|=>|\()/);
-                      const componentName = componentMatch ? componentMatch[1] : null;
-
-                      if (componentName) {
-                        // Create component factory with ALL Lucide icons
-                        const lucideIconNames = Object.keys(LucideIcons);
-                        const lucideIconComponents = Object.values(LucideIcons);
-
-                        const componentFactory = new Function(
-                          'React', 'useState', 'useEffect', 'useMemo', 'useCallback',
-                          ...lucideIconNames,
-                          'Button', 'Card', 'CardHeader', 'CardTitle', 'CardContent',
-                          `${transformedCode}\nreturn ${componentName};`
-                        );
-
-                        const Component = componentFactory(
-                          React, React.useState, React.useEffect, React.useMemo, React.useCallback,
-                          ...lucideIconComponents,
-                          (iframeWindow as any).Button,
-                          (iframeWindow as any).Card,
-                          (iframeWindow as any).CardHeader,
-                          (iframeWindow as any).CardTitle,
-                          (iframeWindow as any).CardContent
-                        );
-
-                        // Render component
-                        const rootElement = iframeDoc.getElementById('root');
-                        if (rootElement) {
-                          const IframeReactDOM = (iframeWindow as any).ReactDOM;
-                          const root = IframeReactDOM.createRoot(rootElement);
-                          root.render(React.createElement(Component));
-                        }
-
-                        // Use setTimeout to avoid setting state during render
-                        setTimeout(() => {
-                          setRenderError(null);
-                        }, 0);
-                      }
-                    } catch (error) {
-                      console.error('Render error:', error);
-                      // Use setTimeout to avoid setting state during render
-                      setTimeout(() => {
-                        setRenderError(error instanceof Error ? error.message : String(error));
-                      }, 0);
-                    }
-
-                    return null;
-                  }}
-                </FrameContextConsumer>
+                <IframeContent
+                  tsxFileContent={tsxFileContent}
+                  setRenderError={setRenderError}
+                  setIframeReady={setIframeReady}
+                />
               </Frame>
             </div>
           </div>
