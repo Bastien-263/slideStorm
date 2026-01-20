@@ -24,6 +24,7 @@ function PdfUploader() {
   const [tsxFileName, setTsxFileName] = useState<string | null>(null);
   const [renderError, setRenderError] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const fullscreenContainerRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<any>(null);
 
@@ -113,7 +114,11 @@ function PdfUploader() {
         method: 'POST',
         body,
       });
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        const errorMessage = errorData.error || `HTTP error! status: ${response.status}`;
+        throw new Error(`Upload failed: ${errorMessage}`);
+      }
       return response.json();
     }
 
@@ -122,7 +127,11 @@ function PdfUploader() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ url, body, method, returnText })
     });
-    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+      const errorMessage = errorData.error || `HTTP error! status: ${response.status}`;
+      throw new Error(`API call failed: ${errorMessage}`);
+    }
     return returnText ? response.text() : response.json();
   };
 
@@ -139,7 +148,8 @@ function PdfUploader() {
 
       for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
         const page = await pdf.getPage(pageNum);
-        const viewport = page.getViewport({ scale: 2 });
+        // Reduced scale from 2 to 1.5 to reduce file size while maintaining quality
+        const viewport = page.getViewport({ scale: 1.5 });
 
         const canvas = document.createElement('canvas');
         const context = canvas.getContext('2d');
@@ -149,12 +159,23 @@ function PdfUploader() {
         if (context) {
           await page.render({ canvasContext: context, viewport } as any).promise;
 
-          const blob = await new Promise<Blob>((resolve) => {
+          // Try JPEG first with quality 0.85 for much smaller file sizes
+          const jpegBlob = await new Promise<Blob>((resolve) => {
+            canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', 0.85);
+          });
+
+          // If JPEG is too large (> 8MB), use PNG instead
+          const useJpeg = jpegBlob.size < 8 * 1024 * 1024;
+
+          const finalBlob = useJpeg ? jpegBlob : await new Promise<Blob>((resolve) => {
             canvas.toBlob((blob) => resolve(blob!), 'image/png');
           });
 
-          const pngFile = new File([blob], `${file.name.replace('.pdf', '')}_page_${pageNum}.png`, { type: 'image/png' });
-          pngFilesArray.push(pngFile);
+          const extension = useJpeg ? 'jpg' : 'png';
+          const mimeType = useJpeg ? 'image/jpeg' : 'image/png';
+          const imageFile = new File([finalBlob], `${file.name.replace('.pdf', '')}_page_${pageNum}.${extension}`, { type: mimeType });
+
+          pngFilesArray.push(imageFile);
         }
       }
 
@@ -237,8 +258,6 @@ function PdfUploader() {
             const fileUrl = `https://dust.tt/api/v1/w/${workspaceId}/files/${fileId}`;
             const fileContent = await callDustAPI(fileUrl, null, 'GET', true);
 
-            console.log(`✅ Slides created successfully! View conversation: https://dust.tt/w/${workspaceId}/assistant/${convId}`);
-
             setTsxFileContent(fileContent);
             setTsxFileName(file.title || 'generated.tsx');
             break;
@@ -260,7 +279,7 @@ function PdfUploader() {
 
     if (file.type === "application/pdf") {
       convertPdfToPng(file);
-    } else if (file.type === "image/png") {
+    } else if (file.type === "image/png" || file.type === "image/jpeg") {
       setPdfFile(file);
       setPngFiles([file]);
       setConversionComplete(true);
@@ -269,7 +288,7 @@ function PdfUploader() {
       setPngFiles([file]);
       setConversionComplete(true);
     } else {
-      setError("Please select a PDF, PNG, or PowerPoint file");
+      setError("Please select a PDF, PNG, JPEG, or PowerPoint file");
       return;
     }
   };
@@ -278,6 +297,7 @@ function PdfUploader() {
     if (!slideSubjectAndContent.trim()) return;
 
     setIsSending(true);
+    setError(null);
 
     try {
       const conversationUrl = `https://dust.tt/api/v1/w/${workspaceId}/assistant/conversations`;
@@ -288,12 +308,20 @@ function PdfUploader() {
       const convId = conversationJson.conversation?.sId;
       if (!convId) throw new Error('Failed to create conversation');
 
-      for (const file of pngFiles) {
-        let contentType = 'image/png';
+      setConversationId(convId);
+
+      for (let i = 0; i < pngFiles.length; i++) {
+        const file = pngFiles[i];
+
+        let contentType = file.type;
         if (file.type === 'application/vnd.ms-powerpoint') {
           contentType = 'application/vnd.ms-powerpoint';
         } else if (file.type === 'application/vnd.openxmlformats-officedocument.presentationml.presentation') {
           contentType = 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
+        } else if (file.type === 'image/jpeg') {
+          contentType = 'image/jpeg';
+        } else if (file.type === 'image/png') {
+          contentType = 'image/png';
         }
 
         const fileCreateResponse = await callDustAPI(
@@ -390,56 +418,103 @@ function PdfUploader() {
           display: "flex",
           gap: "12px",
           alignItems: "center",
-          justifyContent: "flex-end"
+          justifyContent: "space-between",
+          flexWrap: "wrap"
         }}>
-          <button
-            onClick={toggleFullscreen}
-            style={{
-              padding: "10px 16px",
-              background: "#fff",
-              color: "#202123",
-              border: "1px solid #d9d9e3",
-              borderRadius: "8px",
-              fontSize: "14px",
-              cursor: "pointer",
-              fontWeight: "500",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              transition: "all 0.2s"
-            }}
-          >
-            <span>{isFullscreen ? '✕' : '⛶'}</span>
-            <span>{isFullscreen ? 'Exit Presentation' : 'Presentation Mode'}</span>
-          </button>
-          <button
-            onClick={() => {
-              navigator.clipboard.writeText(tsxFileContent);
-              const btn = document.activeElement as HTMLButtonElement;
-              const originalText = btn.innerHTML;
-              btn.innerHTML = '<span>✓</span><span>Copied!</span>';
-              setTimeout(() => {
-                btn.innerHTML = originalText;
-              }, 2000);
-            }}
-            style={{
-              padding: "10px 16px",
-              background: "#10a37f",
-              color: "#fff",
-              border: "none",
-              borderRadius: "8px",
-              fontSize: "14px",
-              cursor: "pointer",
-              fontWeight: "500",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              transition: "all 0.2s"
-            }}
-          >
-            <span>📋</span>
-            <span>Copy Code</span>
-          </button>
+          <div style={{
+            fontSize: "12px",
+            color: "#8e8ea0",
+            fontFamily: "monospace"
+          }}>
+            {conversationId && (
+              <span>Conversation ID: {conversationId}</span>
+            )}
+          </div>
+          <div style={{
+            display: "flex",
+            gap: "12px",
+            alignItems: "center"
+          }}>
+            <button
+              onClick={toggleFullscreen}
+              style={{
+                padding: "10px 16px",
+                background: "#fff",
+                color: "#202123",
+                border: "1px solid #d9d9e3",
+                borderRadius: "8px",
+                fontSize: "14px",
+                cursor: "pointer",
+                fontWeight: "500",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                transition: "all 0.2s"
+              }}
+            >
+              <span>{isFullscreen ? '✕' : '⛶'}</span>
+              <span>{isFullscreen ? 'Exit Presentation' : 'Presentation Mode'}</span>
+            </button>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(tsxFileContent);
+                const btn = document.activeElement as HTMLButtonElement;
+                const originalText = btn.innerHTML;
+                btn.innerHTML = '<span>✓</span><span>Copied!</span>';
+                setTimeout(() => {
+                  btn.innerHTML = originalText;
+                }, 2000);
+              }}
+              style={{
+                padding: "10px 16px",
+                background: "#10a37f",
+                color: "#fff",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: "14px",
+                cursor: "pointer",
+                fontWeight: "500",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                transition: "all 0.2s"
+              }}
+            >
+              <span>📋</span>
+              <span>Copy Code</span>
+            </button>
+            {conversationId && (
+              <button
+                onClick={() => {
+                  const dustUrl = `https://dust.tt/w/${workspaceId}/assistant/${conversationId}`;
+                  navigator.clipboard.writeText(dustUrl);
+                  const btn = document.activeElement as HTMLButtonElement;
+                  const originalText = btn.innerHTML;
+                  btn.innerHTML = '<span>✓</span><span>Copied!</span>';
+                  setTimeout(() => {
+                    btn.innerHTML = originalText;
+                  }, 2000);
+                }}
+                style={{
+                  padding: "10px 16px",
+                  background: "#fff",
+                  color: "#202123",
+                  border: "1px solid #d9d9e3",
+                  borderRadius: "8px",
+                  fontSize: "14px",
+                  cursor: "pointer",
+                  fontWeight: "500",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  transition: "all 0.2s"
+                }}
+              >
+                <span>🔗</span>
+                <span>Dust URL</span>
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Frame wrapper with strict 16:9 aspect ratio */}
@@ -647,11 +722,17 @@ function PdfUploader() {
                           root.render(React.createElement(Component));
                         }
 
-                        setRenderError(null);
+                        // Use setTimeout to avoid setting state during render
+                        setTimeout(() => {
+                          setRenderError(null);
+                        }, 0);
                       }
                     } catch (error) {
                       console.error('Render error:', error);
-                      setRenderError(error instanceof Error ? error.message : String(error));
+                      // Use setTimeout to avoid setting state during render
+                      setTimeout(() => {
+                        setRenderError(error instanceof Error ? error.message : String(error));
+                      }, 0);
                     }
 
                     return null;
@@ -820,7 +901,7 @@ function PdfUploader() {
             <div style={{ flex: 1, minWidth: "200px" }}>
               <input
                 type="file"
-                accept="application/pdf,image/png,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+                accept="application/pdf,image/png,image/jpeg,application/vnd.ms-powerpoint,application/vnd.openxmlformats-officedocument.presentationml.presentation"
                 onChange={handleFileSelect}
                 disabled={isConverting}
                 id="file-input"
