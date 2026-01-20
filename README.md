@@ -1,6 +1,6 @@
 # SlideStorm ⚡
 
-![SlideStorm Logo](./assets/LogoSlideStorm.png)
+![SlideStorm Logo](./LogoSlideStorm.png)
 
 ---
 
