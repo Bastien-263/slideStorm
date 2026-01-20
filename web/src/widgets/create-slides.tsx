@@ -29,8 +29,7 @@ function PdfUploader() {
 
   const workspaceId = import.meta.env.VITE_WORKSPACE_ID;
   const agentId = import.meta.env.VITE_AGENT_ID;
-  // Use relative path to avoid CSP issues - the widget is served from the same domain as the API
-  const proxyUrl = '';
+  const proxyUrl = import.meta.env.VITE_PROXY_URL || 'http://localhost:3000';
 
   // Handle fullscreen changes
   useEffect(() => {
