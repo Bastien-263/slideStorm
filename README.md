@@ -1,77 +1,76 @@
-# Skybridge Starter
+# SlideStorm ⚡
 
-A minimal TypeScript template for building ChatGPT and MCP Apps with widget rendering.
+![SlideStorm Logo](./assets/LogoSlideStorm.png)
 
-## Getting Started
+---
 
-### Prerequisites
+## 🎯 The Project
 
-- Node.js 24+
-- HTTP tunnel such as [ngrok](https://ngrok.com/download)
+**SlideStorm** revolutionizes presentation creation by enabling users to generate professional PDFs purely through conversational prompting. Simple, fast, and efficient.
 
-### Local Development
+### Problem Statement
 
-#### 1. Install
+Current AI-powered presentation generation tools struggle to follow existing templates and require excessive precision in prompts. Users often end up manually reworking almost everything anyway. SlideStorm solves this by seamlessly integrating with pre-designed templates and understanding your needs from natural conversation, delivering optimized slides without the endless back-and-forth.
 
-```bash
-npm install
-# or
-yarn install
-# or
-pnpm install
-# or
-bun install
-```
+---
 
-#### 2. Start your local server
+## 🚀 Try SlideStorm
 
-Run the development server from the root directory:
+### It's simple, fast, and free for now!
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+1. **Visit**: [https://slidestorm-17f72845.alpic.live/try](https://slidestorm-17f72845.alpic.live/try)
+2. **No installation required** - 100% online
+3. **Chat with the assistant** - Tell it you want to create a PDF
+4. **Let yourself be guided**!
 
-This command starts an Express server on port 3000. This server packages:
+### How does it work?
 
-- an MCP endpoint on `/mcp` (the app backend)
-- a React application on Vite HMR dev server (the UI elements to be displayed in the host)
+- **With template**: Choose an existing template and describe the content you want. The AI will automatically fill in the information in your presentation.
+- **Without template**: No problem! A default template will be automatically applied to your presentation.
 
-#### 3. Connect to ChatGPT
+### 🎉 Have Fun!
 
-- ChatGPT requires connectors to be publicly accessible. To expose your server on the Internet, run:
-```bash
-ngrok http 3000
-```
-- In ChatGPT, navigate to **Settings → Connectors → Create** and add the forwarding URL provided by ngrok suffixed with `/mcp` (e.g. `https://3785c5ddc4b6.ngrok-free.app/mcp`)
+Unleash your creativity and create stunning presentations in seconds. SlideStorm transforms your ideas into professional slides like magic ⚡
 
-### Create your first widget
+---
 
-#### 1. Add a new widget
+## 📊 Current Status & Roadmap
 
-- Register a widget in `server/server.ts` with a unique name (e.g., `my-widget`)
-- Create a matching React component at `web/src/widgets/my-widget.tsx`. The file name must match the widget name exactly
+### ✅ What We Can Do Now:
 
-#### 2. Edit widgets with Hot Module Replacement (HMR)
+- 📄 **PDF Creation** from template
+    - 📁 **Import presentation templates** in PDF or PNG image format
+    - 🎨 **Default template selection** - if no template is provided, a default one is automatically selected
+- 🤖 **Prompt system** to specify desired content and presentation style - the more precise the input, the more accurate the final presentation
+- 🖥️ **Presentation** displayed directly in the chat and come with a **Full-screen viewing mode**
 
-Edit and save components in `web/src/widgets/` — changes appear instantly in the host
+### 🚀 Upcoming Features:
 
-#### 3. Edit server code
+- 📄 **PDF export** functionality
+- 💬 **Iterative editing** - continue modifying the presentation through ongoing chat conversation
+- 📊 **PowerPoint (PPT) export**
+- ✏️ **Manual slide editing** directly from the chat interface
+- 📎 **Extended file format support** for template/style input
+- 📚 **Document import capability** to provide source information for presentation content
+- 👥 **Predefined audience profiles** - select target audience profiles to automatically adapt the presentation's tone, language, and content to better match your specific audience
 
-Modify files in `server/` and reload your ChatGPT connector in **Settings → Connectors → [Your connector] → Reload**
+---
 
-## Deploy to Production
+## 🛠️ Tech Stack
 
-- Use [Alpic](https://alpic.ai/) to deploy your OpenAI App to production
-- In ChatGPT, navigate to **Settings → Connectors → Create** and add your MCP server URL (e.g., `https://your-app-name.alpic.live`)
+SlideStorm is a **ChatGPT App** built with:
+- **Skybridge by Alpic**: Conversational application development framework
+- Skybridge project GitHub: [alpic-ai/skybridge](https://github.com/alpic-ai/skybridge)
+- ChatGPT App architecture powered by a **Dust agent** for intelligent orchestration: [dust.tt](https://dust.tt)
 
-## Resources
+---
 
-- [Apps SDK Documentation](https://developers.openai.com/apps-sdk)
-- [Model Context Protocol Documentation](https://modelcontextprotocol.io/)
-- [Alpic Documentation](https://docs.alpic.ai/)
+## 👥 Team
+
+| Name | LinkedIn |
+|-----|----------|
+| **Léandre Le Bizec** | [LinkedIn](https://www.linkedin.com/in/leandre-lebizec/) |
+| **Bastien Legrand** | [LinkedIn](https://www.linkedin.com/in/bastien-legrand-a1b29820b/) |
+
+
+*Project developed during a hackathon*
