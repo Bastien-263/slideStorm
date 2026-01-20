@@ -220,6 +220,7 @@ const server = new McpServer(
             "https://*.ngrok.io",
             "https://*.ngrok-free.app",
             "https://*.alpic.live",
+            "https://*.railway.app",
             "http://localhost:3000"
           ],
         },
